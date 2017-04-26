@@ -138,6 +138,10 @@ int main(int argc, char *argv[])
 		printf("Error occured during recording.\n");
 	}*/
 	
+	
+	
+	sleep(10);
+	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("Storage location: %s/%s\n", experiment.storageDir, experiment.timeStamp);
 

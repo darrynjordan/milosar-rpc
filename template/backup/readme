@@ -3,3 +3,4 @@ v0.2 - Frequency doubler enabled for 50 MHz clock from RP
 v0.3 - MUXout set to DLD (R39 = 5A)
 v0.4 - RAMP_EN set low on startup (R58 = 20)
 v0.5 - PLL_N = 0x64 (N = 100) R16
+v0.6 - MUXout set to FLAG0 (R39 = F2) - same as TRIG1 to indicate triggers for ADC recording.

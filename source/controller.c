@@ -737,14 +737,12 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 
 void generateClock(void)
 {
-	system("generate 1 1 50000000 sine");
-	
-	/*rp_GenReset();
+	rp_GenReset();
 	rp_GenOutEnable(RP_CH_1);
 	rp_GenAmp(RP_CH_1, 1.0f);  	// 2*0.5  = 1 Vpp
 	rp_GenFreq(RP_CH_1, 50000000);
 	rp_GenWaveform(RP_CH_1, RP_WAVEFORM_SINE);
-	rp_GenMode(RP_CH_1, RP_GEN_MODE_CONTINUOUS);*/
+	rp_GenMode(RP_CH_1, RP_GEN_MODE_CONTINUOUS);
 }
 
 
@@ -765,104 +763,6 @@ void getExperimentParameters(Experiment *experiment)
 	
 	experiment->recSize = (125e6*16*experiment->recDuration)/(experiment->decFactor*8*1000);		
 }
-
-
-/*int continuousAcquire(int channel, int kbytes, int dec, char* filename_ch1, char* filename_ch2, char* filename_imu, int is_imu_en)
-{	
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Acquisition on channel %i initiated.\n", channel);
-	
-	static option_fields_t g_options =
-    {
-		// Setting defaults 
-		.address = "",
-		.port = 14000,
-		.port2 = 14001,
-		.tcp = 1,
-		.mode = file,
-		.kbytes_to_transfer = 32,
-		.fname_ch1 = "/media/storage/channel_1.dat",
-		.fname_ch2 = "/media/storage/channel_2.dat",
-		.fname_imu = "/media/storage/imu.dat",
-		.imu_en = 0,
-		.report_rate = 1,
-		.scope_chn = 0, //0 = ch1, 1 = ch2, 2 = ch1+ch2 (only for network mode)
-		.scope_dec = 8,
-		.scope_equalizer = 1,
-		.scope_hv = 0,
-		.scope_shaping = 1,
-    };
-
-	//Writes file of specified size to 
-	int retval;
-	int sock_fd = -1;
-	int sock_fd2 = -1;
-	struct scope_parameter param;
-
-	//Part of function that returns usage instructions for invalid input
-	//Also sets up options
-	if(0 != handle_options(channel, kbytes, dec, filename_ch1, filename_ch2, filename_imu, is_imu_en, &g_options))
-	{
-		//usage(argv[0]);
-		return 1;
-	}
-
-	//If anything goes wrong with initialising scope or options, go to cleanup
-	signal_init();
-
-	if (scope_init(&param, &g_options)) 
-	{
-		retval = 2;
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Scope initialisation failed, went to cleanup\n");
-		goto cleanup;
-	}
-
-	if (g_options.mode == client || g_options.mode == server) 
-	{
-		if (connection_init(&g_options)) 
-		{
-			cprint("[!!] ", BRIGHT, RED);
-			printf("Connection initialisation failed, went to cleanup_scope\n");
-			retval = 3;
-			goto cleanup_scope;
-		}
-	}
-
-	//Anything after this is successful operation
-	retval = 0;
-	while (!transfer_interrupted())
-	{
-		if (g_options.mode == client || g_options.mode == server) 
-		{
-			if (connection_start(&g_options, &sock_fd, &sock_fd2) < 0) 
-			{
-				fprintf(stderr, "%s: problem opening connection.\n", __func__);
-				continue;
-			}
-		}
-      
-		retval = transfer_data(sock_fd, sock_fd2, &param, &g_options);
-		
-		if (retval && !transfer_interrupted())
-			fprintf(stderr, "%s: problem transferring data.\n", __func__);
-
-		if (g_options.mode == client || g_options.mode == server)
-			connection_stop();
-      
-		if (g_options.mode == file)
-			break;
-    }
-  
-	connection_cleanup();
-	
-	cleanup_scope:
-	scope_cleanup(&param);
-	cleanup:
-	signal_exit();
-
-	return retval;	
-}*/
 
 
 int clean_stdin()
