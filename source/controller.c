@@ -698,7 +698,7 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 		fprintf(summaryFile, "storage_directory = %s\r\n", experiment->ch1_filename);
 		fprintf(summaryFile, "decimation_factor = %d\r\n", experiment->decFactor);
 		fprintf(summaryFile, "sampling_rate =  %.2f\r\n", 125e6/experiment->decFactor);
-		fprintf(summaryFile, "duration = %i\r\n", 1024*experiment->recDuration);			
+		fprintf(summaryFile, "n_ramps = %i\r\n", 1024*experiment->n_ramps);			
 		
 		fprintf(summaryFile, "\n[synth_one]\r\n");
 		fprintf(summaryFile, "frequency_offset = %.3f\r\n", vcoOut(synthOne->fractionalNumerator));
@@ -737,6 +737,8 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 
 void generateClock(void)
 {
+	//system("generate 1 1 50000000 sine");
+	
 	rp_GenReset();
 	rp_GenOutEnable(RP_CH_1);
 	rp_GenAmp(RP_CH_1, 1.0f);  	// 2*0.5  = 1 Vpp
@@ -758,10 +760,10 @@ void getExperimentParameters(Experiment *experiment)
 	do
 	{  
 		cprint("[??] ", BRIGHT, BLUE);
-		printf("Recording duration [s]: ");	    
-	} while (((scanf("%d%c", &experiment->recDuration, &userin)!=2 || userin!='\n') && clean_stdin()));
+		printf("Number of ramps: ");	    
+	} while (((scanf("%d%c", &experiment->n_ramps, &userin)!=2 || userin!='\n') && clean_stdin()));
 	
-	experiment->recSize = (125e6*16*experiment->recDuration)/(experiment->decFactor*8*1000);		
+	experiment->recSize = (16*experiment->n_ramps*ADC_BUFFER_SIZE)/(8*1000);		
 }
 
 

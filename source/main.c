@@ -120,27 +120,57 @@ int main(int argc, char *argv[])
 	updateRegisters(&synthOne);
 	updateRegisters(&synthTwo);
 	
-	//enable ramping now that ramps have been configured
-	setRegister(&synthOne, 58, 0b00100001);
-	setRegister(&synthTwo, 58, 0b00100001);
-
 	//get user input for final experiment settings
 	getExperimentParameters(&experiment);
 	configureVerbose(&experiment, &synthOne, &synthTwo);
-
+	
+	//set number of ramps to generate
+	setRegister(&synthOne, 83, 0b00001111);
+	setRegister(&synthTwo, 83, 0b00001111);
+	
+	//enable ramp auto - clears ramp_en when target number of ramps finished
+	setRegister(&synthOne, 84, 0b00100000);
+	setRegister(&synthTwo, 84, 0b00100000);
+	
+	//enable ramping now that ramps have been configured
+	setRegister(&synthOne, 58, 0b00100001);
+	setRegister(&synthTwo, 58, 0b00100001);
+	
+	rp_acq_trig_src_t trigger_source = RP_TRIG_SRC_EXT_PE;
+	
+	rp_AcqSetDecimation(RP_DEC_8);
+	rp_AcqSetTriggerSrc(trigger_source);
+	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE);
+	//rp_AcqSetTriggerLevel(RP_CH_1, 2.0f);
+	//rp_AcqSetGain(RP_CH_1, RP_LOW);
+	
+	rp_AcqStart();
+	
+	int c = 0;
+	
 	//trigger synth's to begin generating ramps at the same time
-	parallelTrigger(&synthOne, &synthTwo);
+	parallelTrigger(&synthOne, &synthTwo);	
+	
+	while(1)
+	{
+		rp_AcqGetTriggerSrc(&trigger_source);
+		
+		if(trigger_source == 0)
+		{
+			c = c + 1;
+			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);				
+			//usleep(100);		
+			printf("ramp_count = %i\n", c);
+		}
+	}		
+	
 	
 /*	//begin recording adc data
 	if (continuousAcquire(experiment.adc_channel, experiment.recSize, experiment.decFactor, experiment.ch1_filename, experiment.ch2_filename, experiment.imu_filename, experiment.is_imu) != 0)
 	{
 		cprint("[!!] ", BRIGHT, RED);
 		printf("Error occured during recording.\n");
-	}*/
-	
-	
-	
-	sleep(10);
+	}*/		
 	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("Storage location: %s/%s\n", experiment.storageDir, experiment.timeStamp);

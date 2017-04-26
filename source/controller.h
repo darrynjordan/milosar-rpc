@@ -60,7 +60,7 @@ typedef struct
 	int is_debug_mode;		//is debug mode enabled
 	int adc_channel;		//adc channel to record on
 	int decFactor; 			//adc decimation factor
-	int recDuration; 		//recording duration [s] 
+	int n_ramps;			//number of ramps to be recorded
 	int recSize; 			//recoring size [kB]
 	char* storageDir; 		//path to storage directory
 	char* timeStamp;		//experiment timestamp
