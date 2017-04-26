@@ -11,6 +11,7 @@
 #include <time.h>
 
 #include "rp.h"
+#include "mon.h"
 
 #define VERSION "2.0.0"
 #define MAX_RAMPS 8

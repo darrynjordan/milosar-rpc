@@ -2,13 +2,13 @@ CC=arm-linux-gnueabihf-gcc
 #HAD TO CHANGE AWAY FROM GNUEABI
 
 #Default location for h files is ./source
-CFLAGS= -std=gnu99 -Wall -Werror -I./source -I./source/rpad/src -L lib -lm -lpthread -lrp
+CFLAGS= -std=gnu99 -Wall -Werror -I./source -L lib -lm -lpthread -lrp
 
 #h files used go here
-DEPS= includes.h rp.h colour.h mon.h scope.h options.h imu.h controller.h transfer.h
+DEPS= includes.h rp.h colour.h imu.h controller.h mon.h
 
 #c files used go here (with .o extension)
-OBJ = source/main.o source/mon.o source/options.o source/transfer.o source/scope.o source/ini.o source/controller.o source/colour.o source/imu.o
+OBJ = source/main.o source/ini.o source/controller.o source/colour.o source/imu.o source/mon.o
 
 #name of generated binaries
 BIN = rpc

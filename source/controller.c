@@ -767,14 +767,14 @@ void getExperimentParameters(Experiment *experiment)
 }
 
 
-int continuousAcquire(int channel, int kbytes, int dec, char* filename_ch1, char* filename_ch2, char* filename_imu, int is_imu_en)
+/*int continuousAcquire(int channel, int kbytes, int dec, char* filename_ch1, char* filename_ch2, char* filename_imu, int is_imu_en)
 {	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("Acquisition on channel %i initiated.\n", channel);
 	
 	static option_fields_t g_options =
     {
-		/* Setting defaults */
+		// Setting defaults 
 		.address = "",
 		.port = 14000,
 		.port2 = 14001,
@@ -862,7 +862,7 @@ int continuousAcquire(int channel, int kbytes, int dec, char* filename_ch1, char
 	signal_exit();
 
 	return retval;	
-}
+}*/
 
 
 int clean_stdin()

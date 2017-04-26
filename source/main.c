@@ -131,12 +131,12 @@ int main(int argc, char *argv[])
 	//trigger synth's to begin generating ramps at the same time
 	parallelTrigger(&synthOne, &synthTwo);
 	
-	//begin recording adc data
+/*	//begin recording adc data
 	if (continuousAcquire(experiment.adc_channel, experiment.recSize, experiment.decFactor, experiment.ch1_filename, experiment.ch2_filename, experiment.imu_filename, experiment.is_imu) != 0)
 	{
 		cprint("[!!] ", BRIGHT, RED);
 		printf("Error occured during recording.\n");
-	}
+	}*/
 	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("Storage location: %s/%s\n", experiment.storageDir, experiment.timeStamp);
