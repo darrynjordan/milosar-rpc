@@ -15,3 +15,7 @@
 
  * added help screen (-h)
 
+# M-RPC v2.0.0
+
+ * using arm-linux-gnueabihf-gcc on newer os
+ * changed path to rp library

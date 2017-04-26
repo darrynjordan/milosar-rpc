@@ -1,5 +1,5 @@
-CC=arm-linux-gnueabi-gcc
-#HAD TO CHANGE AWAY FROM GNUEABIHF
+CC=arm-linux-gnueabihf-gcc
+#HAD TO CHANGE AWAY FROM GNUEABI
 
 #Default location for h files is ./source
 CFLAGS= -std=gnu99 -Wall -Werror -I./source -I./source/rpad/src -L lib -lm -lpthread -lrp
