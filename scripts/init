@@ -1,0 +1,14 @@
+#!/bin/sh   
+echo "Enabling read-write mode..." 
+rw
+echo "Creating storage directory: /media/storage"
+mkdir /media/storage  
+echo "Available partitions:"
+blkid
+echo "Mounting storage partition..."
+mount /dev/mmcblk0p3 /media/storage
+echo "Enter date and time in format: 2017-12-01 13:45"
+read input 
+echo "Date and time set to:"
+date --set """$input"""
+
