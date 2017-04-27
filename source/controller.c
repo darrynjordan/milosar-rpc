@@ -355,14 +355,6 @@ void initPins(Synthesizer *synth)
 	synth->clockPin = offset + 2 + RP_DIO0_N;
 	synth->trigPin  = offset + 3 + RP_DIO0_N;
 	
-	/*if (DEBUG_MODE)
-	{
-		printf("Synth %i latch pin: \tRP_DIO%i_N\n", synth->number, offset + 0);
-		printf("Synth %i data pin: \tRP_DIO%i_N\n", synth->number, offset + 1);
-		printf("Synth %i clock pin: \tRP_DIO%i_N\n", synth->number, offset + 2);
-		printf("Synth %i trig pin: \tRP_DIO%i_N\n", synth->number, offset + 3);
-	}*/
-	
 	//Set directions of pins
 	rp_DpinSetDirection(synth->latchPin, RP_OUT);
 	rp_DpinSetDirection(synth->dataPin, RP_OUT);

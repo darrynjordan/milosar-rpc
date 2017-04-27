@@ -133,34 +133,34 @@ int main(int argc, char *argv[])
 	setRegister(&synthTwo, 84, 0b00100000);
 	
 	//enable ramping now that ramps have been configured
+	//note that synths will wait on ramp0 until triggered.
 	setRegister(&synthOne, 58, 0b00100001);
 	setRegister(&synthTwo, 58, 0b00100001);
 	
-	rp_acq_trig_src_t trigger_source = RP_TRIG_SRC_EXT_PE;
+	experiment.trigger_source = RP_TRIG_SRC_EXT_PE;	
 	
 	rp_AcqSetDecimation(RP_DEC_8);
-	rp_AcqSetTriggerSrc(trigger_source);
-	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE);
+	rp_AcqSetTriggerSrc(experiment.trigger_source);
+	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
 	//rp_AcqSetTriggerLevel(RP_CH_1, 2.0f);
 	//rp_AcqSetGain(RP_CH_1, RP_LOW);
 	
-	rp_AcqStart();
-	
-	int c = 0;
+	rp_AcqStart();	
+	int n_flags = 0;
 	
 	//trigger synth's to begin generating ramps at the same time
 	parallelTrigger(&synthOne, &synthTwo);	
 	
 	while(1)
 	{
-		rp_AcqGetTriggerSrc(&trigger_source);
+		rp_AcqGetTriggerSrc(&experiment.trigger_source);
 		
-		if(trigger_source == 0)
+		if(experiment.trigger_source == 0)
 		{
-			c = c + 1;
+			n_flags += 1;
 			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);				
 			//usleep(100);		
-			printf("ramp_count = %i\n", c);
+			printf("ramp_count = %i\n", n_flags);
 		}
 	}		
 	

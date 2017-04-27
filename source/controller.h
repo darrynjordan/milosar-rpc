@@ -56,18 +56,19 @@ typedef struct
 
 typedef struct
 {
-	int is_imu;				//is the IMU connected?
-	int is_debug_mode;		//is debug mode enabled
-	int adc_channel;		//adc channel to record on
-	int decFactor; 			//adc decimation factor
-	int n_ramps;			//number of ramps to be recorded
-	int recSize; 			//recoring size [kB]
-	char* storageDir; 		//path to storage directory
-	char* timeStamp;		//experiment timestamp
-	char* ch1_filename; 	//filename of output data including path
-	char* ch2_filename; 	//filename of output data including path
-	char* imu_filename; 	//filename of output data including path
-	char* summary_filename; //filename of summary file including path
+	int is_imu;							//is the IMU connected?
+	int is_debug_mode;					//is debug mode enabled
+	int adc_channel;					//adc channel to record on
+	int decFactor; 						//adc decimation factor
+	int n_ramps;						//number of ramps to be recorded
+	int recSize; 						//recoring size [kB]
+	char* storageDir; 					//path to storage directory
+	char* timeStamp;					//experiment timestamp
+	char* ch1_filename; 				//filename of output data including path
+	char* ch2_filename; 				//filename of output data including path
+	char* imu_filename; 				//filename of output data including path
+	char* summary_filename; 			//filename of summary file including path
+	rp_acq_trig_src_t trigger_source;  	//source for red pitaya adc trigger
 } Experiment;
 
 void clearTerminal(void);
@@ -96,7 +97,7 @@ void setRegister(Synthesizer *synth, int registerAddress, int registerValue);
 
 void decimalToBinary(uint64_t decimalValue, int* binaryValue);
 void printBinary(int* binaryValue, int paddedSize);
-int  continuousAcquire(int channel, int kbytes, int dec, char* filename_ch1, char* filename_ch2, char* filename_imu, int is_imu_en);
+//int  continuousAcquire(int channel, int kbytes, int dec, char* filename_ch1, char* filename_ch2, char* filename_imu, int is_imu_en);
 int  clean_stdin();
 void initIMU(void);
 
