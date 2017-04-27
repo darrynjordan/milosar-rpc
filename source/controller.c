@@ -690,7 +690,7 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 		fprintf(summaryFile, "storage_directory = %s\r\n", experiment->ch1_filename);
 		fprintf(summaryFile, "decimation_factor = %d\r\n", experiment->decFactor);
 		fprintf(summaryFile, "sampling_rate =  %.2f\r\n", 125e6/experiment->decFactor);
-		fprintf(summaryFile, "n_ramps = %i\r\n", 1024*experiment->n_ramps);			
+		fprintf(summaryFile, "n_ramps = %i\r\n", experiment->n_ramps);			
 		
 		fprintf(summaryFile, "\n[synth_one]\r\n");
 		fprintf(summaryFile, "frequency_offset = %.3f\r\n", vcoOut(synthOne->fractionalNumerator));

@@ -16,6 +16,7 @@
 #define VERSION "2.0.0"
 #define MAX_RAMPS 8
 #define NUM_REGISTERS 142
+#define ADC_RATE 125e6
 
 typedef struct 
 {

@@ -124,53 +124,79 @@ int main(int argc, char *argv[])
 	getExperimentParameters(&experiment);
 	configureVerbose(&experiment, &synthOne, &synthTwo);
 	
-	//set number of ramps to generate
-	setRegister(&synthOne, 83, 0b00001111);
-	setRegister(&synthTwo, 83, 0b00001111);
-	
-	//enable ramp auto - clears ramp_en when target number of ramps finished
-	setRegister(&synthOne, 84, 0b00100000);
-	setRegister(&synthTwo, 84, 0b00100000);
+	if (experiment.n_ramps > 0)
+	{
+		//set number of ramps to generate
+		setRegister(&synthOne, 83, experiment.n_ramps);
+		setRegister(&synthTwo, 83, experiment.n_ramps);
+		
+		//enable ramp auto - clears ramp_en when target number of ramps finished
+		setRegister(&synthOne, 84, 0b00100000);
+		setRegister(&synthTwo, 84, 0b00100000);
+	}
 	
 	//enable ramping now that ramps have been configured
 	//note that synths will wait on ramp0 until triggered.
 	setRegister(&synthOne, 58, 0b00100001);
 	setRegister(&synthTwo, 58, 0b00100001);
 	
+	int n_flags = 0;
+	FILE *binOutFile;	
+	uint32_t bufferSize = 2048;
+	int u_delay = ((float)(bufferSize*experiment.decFactor/(float)ADC_RATE)*1e6)/4;
+	float_t* binOutBuffer = (float_t*)malloc(bufferSize*sizeof(float_t*));
+	
+	cprint("[OK] ", BRIGHT, GREEN);
+	printf("ADC capture delay: %i\n", u_delay);
+	
+	memset(binOutBuffer, 0, bufferSize);	
+	
+	if (!(binOutFile = fopen(experiment.ch1_filename, "wb"))) 
+	{
+		fprintf(stderr, "file open failed, %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}	
+		
+	rp_AcqSetDecimation(RP_DEC_8);	
+	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
 	experiment.trigger_source = RP_TRIG_SRC_EXT_PE;	
 	
-	rp_AcqSetDecimation(RP_DEC_8);
-	rp_AcqSetTriggerSrc(experiment.trigger_source);
-	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
-	//rp_AcqSetTriggerLevel(RP_CH_1, 2.0f);
-	//rp_AcqSetGain(RP_CH_1, RP_LOW);
-	
 	rp_AcqStart();	
-	int n_flags = 0;
-	
+	usleep(u_delay);
+	rp_AcqSetTriggerSrc(experiment.trigger_source);		
+
 	//trigger synth's to begin generating ramps at the same time
 	parallelTrigger(&synthOne, &synthTwo);	
 	
-	while(1)
+	//very specific to the number of ramps chosen!
+	while (n_flags < (experiment.n_ramps-1)/4 - 1)
 	{
 		rp_AcqGetTriggerSrc(&experiment.trigger_source);
 		
-		if(experiment.trigger_source == 0)
+		if (experiment.trigger_source == 0)
 		{
-			n_flags += 1;
-			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);				
-			//usleep(100);		
-			printf("ramp_count = %i\n", n_flags);
+			if (rp_AcqGetLatestDataV(RP_CH_1, &bufferSize, binOutBuffer) != RP_OK)
+			{
+				cprint("[!!] ", BRIGHT, RED);
+				printf("Error fetching ADC data. \n");
+			}
+			
+			fwrite(binOutBuffer, sizeof(float_t), bufferSize, binOutFile);
+			memset(binOutBuffer, 0, bufferSize);	
+			
+			rp_AcqStart();
+			usleep(u_delay);			
+			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);	
+			
+			n_flags += 1;	
 		}
 	}		
 	
+	cprint("[OK] ", BRIGHT, GREEN);
+	printf("Ramp Count: %i\n", n_flags);	
 	
-/*	//begin recording adc data
-	if (continuousAcquire(experiment.adc_channel, experiment.recSize, experiment.decFactor, experiment.ch1_filename, experiment.ch2_filename, experiment.imu_filename, experiment.is_imu) != 0)
-	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Error occured during recording.\n");
-	}*/		
+	cprint("[OK] ", BRIGHT, GREEN);
+	printf("File Size: %i\n", experiment.recSize);
 	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("Storage location: %s/%s\n", experiment.storageDir, experiment.timeStamp);
