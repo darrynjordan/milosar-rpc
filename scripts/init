@@ -11,4 +11,7 @@ echo "Enter date and time in format: 2017-12-01 13:45"
 read input 
 echo "Date and time set to:"
 date --set """$input"""
+echo "Loading FPGA image..."
+cat /opt/redpitaya/fpga/fpga_0.94.bit > /dev/xdevcfg
+echo "Initialization Complete!\n"
 
