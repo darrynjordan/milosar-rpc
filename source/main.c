@@ -127,12 +127,12 @@ int main(int argc, char *argv[])
 	if (experiment.n_ramps > 0)
 	{
 		//set number of ramps to generate
-		setRegister(&synthOne, 83, 101);
-		setRegister(&synthTwo, 83, 101);
+		setRegister(&synthOne, 83, 0b11111111);
+		setRegister(&synthTwo, 83, 0b11111111);
 		
 		//enable ramp auto - clears ramp_en when target number of ramps finished
-		setRegister(&synthOne, 84, 0b00100000);
-		setRegister(&synthTwo, 84, 0b00100000);
+		setRegister(&synthOne, 84, 0b00111111);
+		setRegister(&synthTwo, 84, 0b00111111);
 	}
 	
 	//enable ramping now that ramps have been configured
@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 	parallelTrigger(&synthOne, &synthTwo);	
 	
 	//very specific to the number of ramps chosen!
-	while (n_flags < (101-1)/4)
+	while (n_flags < (8191-1)/4)
 	{
 		//get the state of the ADC trigger source
 		rp_AcqGetTriggerSrc(&experiment.trigger_source);
@@ -204,7 +204,9 @@ int main(int argc, char *argv[])
 			duration = end_time.tv_usec - start_time.tv_usec;
 			printf("Time: %lu us \n", duration);	
 		}
-	}			
+	}		
+	
+	fclose(binOutFile);	
 	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("Ramp Count: %i\n", n_flags);	
