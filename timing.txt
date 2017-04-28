@@ -1,0 +1,13 @@
+Timing results of the rp_AcqGetOldestDataRaw() function.
+
+ADC Samples		Micro Seconds
+100				23
+200				42
+500				99
+1000			195
+2000			371
+5000			963
+10000			1961
+16384			3165
+
+0.2 [us/sample] is a safe estimate.

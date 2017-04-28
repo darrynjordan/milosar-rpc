@@ -127,8 +127,8 @@ int main(int argc, char *argv[])
 	if (experiment.n_ramps > 0)
 	{
 		//set number of ramps to generate
-		setRegister(&synthOne, 83, experiment.n_ramps);
-		setRegister(&synthTwo, 83, experiment.n_ramps);
+		setRegister(&synthOne, 83, 101);
+		setRegister(&synthTwo, 83, 101);
 		
 		//enable ramp auto - clears ramp_en when target number of ramps finished
 		setRegister(&synthOne, 84, 0b00100000);
@@ -143,8 +143,8 @@ int main(int argc, char *argv[])
 	int n_flags = 0;
 	FILE *binOutFile;	
 	uint32_t bufferSize = 2048;
-	int u_delay = ((float)(bufferSize*experiment.decFactor/(float)ADC_RATE)*1e6)/4;
-	float_t* binOutBuffer = (float_t*)malloc(bufferSize*sizeof(float_t*));
+	int u_delay = ((float)(bufferSize*experiment.decFactor/(float)ADC_RATE)*1e6);
+	int16_t* binOutBuffer = (int16_t*)malloc(bufferSize*sizeof(int16_t*));
 	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("ADC capture delay: %i\n", u_delay);
@@ -156,10 +156,13 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "file open failed, %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}	
-		
+	
 	rp_AcqSetDecimation(RP_DEC_8);	
 	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
 	experiment.trigger_source = RP_TRIG_SRC_EXT_PE;	
+	
+	struct timeval start_time, end_time;
+	unsigned long duration = 0UL;	
 	
 	rp_AcqStart();	
 	usleep(u_delay);
@@ -169,28 +172,39 @@ int main(int argc, char *argv[])
 	parallelTrigger(&synthOne, &synthTwo);	
 	
 	//very specific to the number of ramps chosen!
-	while (n_flags < (experiment.n_ramps-1)/4 - 1)
+	while (n_flags < (101-1)/4)
 	{
+		//get the state of the ADC trigger source
 		rp_AcqGetTriggerSrc(&experiment.trigger_source);
 		
 		if (experiment.trigger_source == 0)
 		{
-			if (rp_AcqGetLatestDataV(RP_CH_1, &bufferSize, binOutBuffer) != RP_OK)
-			{
-				cprint("[!!] ", BRIGHT, RED);
-				printf("Error fetching ADC data. \n");
-			}
+			gettimeofday(&start_time, NULL);	
 			
-			fwrite(binOutBuffer, sizeof(float_t), bufferSize, binOutFile);
-			memset(binOutBuffer, 0, bufferSize);	
+			//new flag detected
+			n_flags += 1;				
 			
+			//transfer data from ADC buffer to RAM
+			rp_AcqGetLatestDataRaw(RP_CH_1, &bufferSize, binOutBuffer);		
+			
+			//restart adc 
 			rp_AcqStart();
-			usleep(u_delay);			
+			
+			//ensure adc buffer contains new samples
+			usleep(u_delay);
+			
+			//transfer data to SD, add additional delay 
+			fwrite(binOutBuffer, sizeof(int16_t), bufferSize, binOutFile);
+		
+			//set state of ADC trigger back to external pin rising edge.
 			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);	
 			
-			n_flags += 1;	
+			gettimeofday(&end_time, NULL);	
+			
+			duration = end_time.tv_usec - start_time.tv_usec;
+			printf("Time: %lu us \n", duration);	
 		}
-	}		
+	}			
 	
 	cprint("[OK] ", BRIGHT, GREEN);
 	printf("Ramp Count: %i\n", n_flags);	

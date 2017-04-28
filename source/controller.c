@@ -603,10 +603,10 @@ void parallelTrigger(Synthesizer *synthOne, Synthesizer *synthTwo)
 	usleep(1);
 	setpins(synthOne->trigPin - RP_DIO0_N, 1, synthTwo->trigPin - RP_DIO0_N, 1, 0x4000001C);
 	/*usleep(1);
-	setpins(synthOne->trigPin - RP_DIO0_N, 0, synthTwo->trigPin - RP_DIO0_N, 0, 0x4000001C);*/
+	setpins(synthOne->trigPin - RP_DIO0_N, 0, synthTwo->trigPin - RP_DIO0_N, 0, 0x4000001C);
 	
 	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Synthesizers triggered in parallel.\n");		
+	printf("Synthesizers triggered in parallel.\n");*/
 }
 
 
