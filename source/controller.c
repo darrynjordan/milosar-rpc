@@ -583,9 +583,6 @@ void triggerSynthesizers(Synthesizer *synthOne, Synthesizer *synthTwo)
 	usleep(1);	
 	rp_DpinSetState(synthTwo->trigPin, RP_HIGH);
 	rp_DpinSetState(synthOne->trigPin, RP_HIGH);
-	/*usleep(1);
-	rp_DpinSetState(synthOne->trigPin, RP_LOW);
-	rp_DpinSetState(synthTwo->trigPin, RP_LOW);*/	
 }
 
 
@@ -602,16 +599,23 @@ void parallelTrigger(Synthesizer *synthOne, Synthesizer *synthTwo)
 	setpins(synthOne->trigPin - RP_DIO0_N, 0, synthTwo->trigPin - RP_DIO0_N, 0, 0x4000001C);
 	usleep(1);
 	setpins(synthOne->trigPin - RP_DIO0_N, 1, synthTwo->trigPin - RP_DIO0_N, 1, 0x4000001C);
-	/*usleep(1);
-	setpins(synthOne->trigPin - RP_DIO0_N, 0, synthTwo->trigPin - RP_DIO0_N, 0, 0x4000001C);
-	
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Synthesizers triggered in parallel.\n");*/
 }
 
 
 void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer *synthTwo)
 {
+	experiment->decFactor = 8;
+	
+	char userin;	
+
+	do
+	{  
+		cprint("[??] ", BRIGHT, BLUE);
+		printf("Ramps: ");	    
+	} while (((scanf("%d%c", &experiment->n_ramps, &userin)!=2 || userin!='\n') && clean_stdin()));
+	
+	experiment->outputSize = (16*experiment->n_ramps*experiment->ns_adc_buffer)/(8*1e6);		
+
 	//read-write mode
 	system("rw\n");
 
@@ -680,7 +684,7 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 		fprintf(summaryFile, "rpc_version = %s\r\n", VERSION);
 		
 		cprint("[??] ", BRIGHT, BLUE);
-		printf("Experiment comment [140]: ");
+		printf("Comment [140]: ");
 		char userin[140];
 		scanf("%[^\n]s", userin);
 		
@@ -737,25 +741,6 @@ void generateClock(void)
 	rp_GenFreq(RP_CH_1, 50000000);
 	rp_GenWaveform(RP_CH_1, RP_WAVEFORM_SINE);
 	rp_GenMode(RP_CH_1, RP_GEN_MODE_CONTINUOUS);
-}
-
-
-void getExperimentParameters(Experiment *experiment)
-{	
-	char userin;
-	do
-	{  
-		cprint("[??] ", BRIGHT, BLUE);
-		printf("Decimation factor: ");	    
-	} while (((scanf("%d%c", &experiment->decFactor, &userin)!=2 || userin!='\n') && clean_stdin()));
-
-	do
-	{  
-		cprint("[??] ", BRIGHT, BLUE);
-		printf("Number of ramps: ");	    
-	} while (((scanf("%d%c", &experiment->n_ramps, &userin)!=2 || userin!='\n') && clean_stdin()));
-	
-	experiment->recSize = (16*experiment->n_ramps*ADC_BUFFER_SIZE)/(8*1000);		
 }
 
 
@@ -828,6 +813,11 @@ double bnwOut(double rampInc, uint16_t rampLen)
 		return (rampInc*rampLen*100)/pow(2, 26);
 	else
 		return ((rampInc - pow(2, 30))*rampLen*100)/pow(2, 26);
+}
+
+double elapsed_us(struct timeval start_time, struct timeval end_time)
+{
+	return ((double)end_time.tv_sec - (double)start_time.tv_sec)*1e6 + ((double)end_time.tv_usec - (double)start_time.tv_usec);
 }
 
 

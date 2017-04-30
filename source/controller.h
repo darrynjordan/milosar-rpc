@@ -61,20 +61,24 @@ typedef struct
 	int is_debug_mode;					//is debug mode enabled
 	int adc_channel;					//adc channel to record on
 	int decFactor; 						//adc decimation factor
+	int u_max_loop;		 				//maximum loop period in microseconds
+	int n_flags;						//number of flags detected
+	int n_corrupt;						//number of ramps which contain partly new and partly old data
+	int n_missed;						//number of flags missed 
 	int n_ramps;						//number of ramps to be recorded
-	int recSize; 						//recoring size [kB]
+	double_t outputSize; 				//recoring size [MB]
 	char* storageDir; 					//path to storage directory
 	char* timeStamp;					//experiment timestamp
 	char* ch1_filename; 				//filename of output data including path
 	char* ch2_filename; 				//filename of output data including path
 	char* imu_filename; 				//filename of output data including path
 	char* summary_filename; 			//filename of summary file including path
+	uint32_t ns_adc_buffer;				//number of samples to capture from adc
 	rp_acq_trig_src_t trigger_source;  	//source for red pitaya adc trigger
 } Experiment;
 
 void clearTerminal(void);
 void getParameters(Synthesizer *synth);
-void getExperimentParameters(Experiment *experiment);
 int  handler(void* user, const char* section, const char* name, const char* value);
 
 void calculateRampParameters(Synthesizer *synth, Experiment *experiment);
@@ -104,5 +108,6 @@ void initIMU(void);
 
 double vcoOut(uint32_t fracNum);
 double bnwOut(double rampInc, uint16_t);
+double elapsed_us(struct timeval start_time, struct timeval end_time);
 
 #endif

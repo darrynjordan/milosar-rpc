@@ -120,11 +120,16 @@ int main(int argc, char *argv[])
 	updateRegisters(&synthOne);
 	updateRegisters(&synthTwo);
 	
+	experiment.ns_adc_buffer = 2048;	
+	experiment.u_max_loop = 950; 	
+	experiment.n_flags = 0;		
+	experiment.n_corrupt = 0;		
+	experiment.n_missed = 0;	
+	
 	//get user input for final experiment settings
-	getExperimentParameters(&experiment);
 	configureVerbose(&experiment, &synthOne, &synthTwo);
 	
-	if (experiment.n_ramps > 0)
+	/*if (experiment.n_ramps > 0)
 	{
 		//set number of ramps to generate
 		setRegister(&synthOne, 83, 0b11111111);
@@ -133,23 +138,38 @@ int main(int argc, char *argv[])
 		//enable ramp auto - clears ramp_en when target number of ramps finished
 		setRegister(&synthOne, 84, 0b00111111);
 		setRegister(&synthTwo, 84, 0b00111111);
-	}
+	}*/
 	
 	//enable ramping now that ramps have been configured
 	//note that synths will wait on ramp0 until triggered.
 	setRegister(&synthOne, 58, 0b00100001);
-	setRegister(&synthTwo, 58, 0b00100001);
+	setRegister(&synthTwo, 58, 0b00100001);	
 	
-	int n_flags = 0;
 	FILE *binOutFile;	
-	uint32_t bufferSize = 2048;
-	int u_delay = ((float)(bufferSize*experiment.decFactor/(float)ADC_RATE)*1e6);
-	int16_t* binOutBuffer = (int16_t*)malloc(bufferSize*sizeof(int16_t*));
+	struct timeval start_time, transfer_time, loop_time;	
+
 	
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("ADC capture delay: %i\n", u_delay);
+	//time required to fill the adc buffer with fresh data
+	int u_adc_buffer = experiment.ns_adc_buffer*((float)experiment.decFactor/(float)ADC_RATE)*1e6;
+
+	//time used by the rp_AcqGetLatestDataRaw function to transfer data from fpga to cpu
+	double transfer_duration = 0;
 	
-	memset(binOutBuffer, 0, bufferSize);	
+	//total time used by the data capture loop
+	//used as indication for lost flags
+	double loop_duration = 0;
+	
+	//buffer used to store adc samples 
+	int16_t* adcBuffer = (int16_t*)malloc(experiment.ns_adc_buffer*sizeof(int16_t*));
+	memset(adcBuffer, 0, experiment.ns_adc_buffer);
+	
+	if (experiment.is_debug_mode)
+	{
+		cprint("[**] ", BRIGHT, CYAN);
+		printf("Decimation factor: %i\n", experiment.decFactor);
+		cprint("[**] ", BRIGHT, CYAN);
+		printf("Capture delay: %i\n", u_adc_buffer);
+	}		
 	
 	if (!(binOutFile = fopen(experiment.ch1_filename, "wb"))) 
 	{
@@ -161,61 +181,94 @@ int main(int argc, char *argv[])
 	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
 	experiment.trigger_source = RP_TRIG_SRC_EXT_PE;	
 	
-	struct timeval start_time, end_time;
-	unsigned long duration = 0UL;	
-	
+	//start adc sampling
 	rp_AcqStart();	
-	usleep(u_delay);
+	
+	//allow enough time for the adc buffer to fill with new data 
+	usleep(u_adc_buffer);
+	
+	//set the source of the adc trigger
 	rp_AcqSetTriggerSrc(experiment.trigger_source);		
 
 	//trigger synth's to begin generating ramps at the same time
 	parallelTrigger(&synthOne, &synthTwo);	
 	
-	//very specific to the number of ramps chosen!
-	while (n_flags < (8191-1)/4)
+	//loop until the specified number of ramps have been detected
+	while (experiment.n_flags < experiment.n_ramps) 								//(n_flags < (pow(2, 13) - 1 - 1)/4 - n_missed)
 	{
-		//get the state of the ADC trigger source
+		//get the latest state of the ADC trigger source
 		rp_AcqGetTriggerSrc(&experiment.trigger_source);
 		
+		//trigger source set to zero implies that data capture is complete
 		if (experiment.trigger_source == 0)
 		{
+			//get start time
 			gettimeofday(&start_time, NULL);	
 			
-			//new flag detected
-			n_flags += 1;				
+			//flag has been detected
+			experiment.n_flags += 1;				
 			
 			//transfer data from ADC buffer to RAM
-			rp_AcqGetLatestDataRaw(RP_CH_1, &bufferSize, binOutBuffer);		
+			rp_AcqGetLatestDataRaw(RP_CH_1, &experiment.ns_adc_buffer, adcBuffer);		
 			
-			//restart adc 
+			//restart adc sampling
 			rp_AcqStart();
 			
-			//ensure adc buffer contains new samples
-			usleep(u_delay);
+			//get transfer time
+			gettimeofday(&transfer_time, NULL);				
+			transfer_duration = elapsed_us(start_time, transfer_time);
+			
+			//check to see if there is enough time to fill the adc buffer with new data
+			if (experiment.u_max_loop - transfer_duration < u_adc_buffer) 
+			{				
+				experiment.n_corrupt += 1;		
+				printf("Data transfer took %.2f us\n", transfer_duration);
+			}	
 			
 			//transfer data to SD, add additional delay 
-			fwrite(binOutBuffer, sizeof(int16_t), bufferSize, binOutFile);
+			fwrite(adcBuffer, sizeof(int16_t), experiment.ns_adc_buffer, binOutFile);
 		
 			//set state of ADC trigger back to external pin rising edge.
-			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);	
+			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);
 			
-			gettimeofday(&end_time, NULL);	
-			
-			duration = end_time.tv_usec - start_time.tv_usec;
-			printf("Time: %lu us \n", duration);	
+			//get loop time
+			gettimeofday(&loop_time, NULL);				
+			loop_duration = elapsed_us(start_time, loop_time);			
+
+			//check to see if a flag could be lost
+			if (loop_duration > experiment.u_max_loop) 
+			{				
+				experiment.n_missed += loop_duration/experiment.u_max_loop;	
+				printf("Loop took %.2f us\n", loop_duration);	
+			}	
 		}
 	}		
 	
-	fclose(binOutFile);	
+	fclose(binOutFile);		
+	
+	if (experiment.n_missed > 0)
+	{
+		cprint("[!!] ", BRIGHT, RED);
+		printf("Missed ramps: %i\n", experiment.n_missed);			
+	}
+	
+	if (experiment.n_corrupt > 0)
+	{
+		cprint("[!!] ", BRIGHT, RED);
+		printf("Corrupt ramps: %i\n", experiment.n_corrupt);			
+	}
 	
 	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Ramp Count: %i\n", n_flags);	
+	printf("Ramp Count: %i\n", experiment.n_flags);	
 	
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("File Size: %i\n", experiment.recSize);
-	
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Storage location: %s/%s\n", experiment.storageDir, experiment.timeStamp);
+	if (experiment.is_debug_mode)
+	{
+		cprint("[**] ", BRIGHT, CYAN);
+		printf("File Size: %.2f MB\n", experiment.outputSize);
+		
+		cprint("[**] ", BRIGHT, CYAN);
+		printf("Storage location: %s/%s\n", experiment.storageDir, experiment.timeStamp);
+	}
 
 	releaseRP();
 
