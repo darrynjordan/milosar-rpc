@@ -125,6 +125,8 @@ int main(int argc, char *argv[])
 	experiment.n_flags = 0;		
 	experiment.n_corrupt = 0;		
 	experiment.n_missed = 0;	
+	experiment.trigger_level = 1.5;
+	experiment.trigger_source = RP_TRIG_SRC_EXT_PE;	
 	
 	//get user input for final experiment settings
 	configureVerbose(&experiment, &synthOne, &synthTwo);
@@ -150,7 +152,7 @@ int main(int argc, char *argv[])
 
 	
 	//time required to fill the adc buffer with fresh data
-	int u_adc_buffer = experiment.ns_adc_buffer*((float)experiment.decFactor/(float)ADC_RATE)*1e6;
+	int u_adc_buffer = 1.5*experiment.ns_adc_buffer*((float)experiment.decFactor/(float)ADC_RATE)*1e6;
 
 	//time used by the rp_AcqGetLatestDataRaw function to transfer data from fpga to cpu
 	double transfer_duration = 0;
@@ -163,12 +165,20 @@ int main(int argc, char *argv[])
 	int16_t* adcBuffer = (int16_t*)malloc(experiment.ns_adc_buffer*sizeof(int16_t*));
 	memset(adcBuffer, 0, experiment.ns_adc_buffer);
 	
+	rp_AcqSetDecimation(RP_DEC_8);	
+	rp_AcqSetTriggerDelay(0);
+	
 	if (experiment.is_debug_mode)
 	{
 		cprint("[**] ", BRIGHT, CYAN);
 		printf("Decimation factor: %i\n", experiment.decFactor);
+		
 		cprint("[**] ", BRIGHT, CYAN);
 		printf("Capture delay: %i\n", u_adc_buffer);
+		
+		cprint("[**] ", BRIGHT, CYAN);
+		rp_AcqGetTriggerLevel(&experiment.trigger_level);
+		printf("Trigger level: %f\n", experiment.trigger_level);
 	}		
 	
 	if (!(binOutFile = fopen(experiment.ch1_filename, "wb"))) 
@@ -176,10 +186,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "file open failed, %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}	
-	
-	rp_AcqSetDecimation(RP_DEC_8);	
-	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
-	experiment.trigger_source = RP_TRIG_SRC_EXT_PE;	
 	
 	//start adc sampling
 	rp_AcqStart();	
@@ -225,6 +231,9 @@ int main(int argc, char *argv[])
 				printf("Data transfer took %.2f us\n", transfer_duration);
 			}	
 			
+			//allow enough time for the adc buffer to fill with new data 
+			usleep(u_adc_buffer);			
+
 			//transfer data to SD, add additional delay 
 			fwrite(adcBuffer, sizeof(int16_t), experiment.ns_adc_buffer, binOutFile);
 		
