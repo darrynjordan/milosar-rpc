@@ -604,8 +604,6 @@ void parallelTrigger(Synthesizer *synthOne, Synthesizer *synthTwo)
 
 void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer *synthTwo)
 {
-	experiment->decFactor = 8;
-	
 	char userin;	
 
 	do

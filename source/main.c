@@ -125,8 +125,8 @@ int main(int argc, char *argv[])
 	experiment.n_flags = 0;		
 	experiment.n_corrupt = 0;		
 	experiment.n_missed = 0;	
-	experiment.trigger_level = 1.5;
 	experiment.trigger_source = RP_TRIG_SRC_EXT_PE;	
+	experiment.decFactor = 8;
 	
 	//get user input for final experiment settings
 	configureVerbose(&experiment, &synthOne, &synthTwo);
@@ -175,10 +175,6 @@ int main(int argc, char *argv[])
 		
 		cprint("[**] ", BRIGHT, CYAN);
 		printf("Capture delay: %i\n", u_adc_buffer);
-		
-		cprint("[**] ", BRIGHT, CYAN);
-		rp_AcqGetTriggerLevel(&experiment.trigger_level);
-		printf("Trigger level: %f\n", experiment.trigger_level);
 	}		
 	
 	if (!(binOutFile = fopen(experiment.ch1_filename, "wb"))) 

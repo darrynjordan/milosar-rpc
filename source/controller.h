@@ -66,7 +66,6 @@ typedef struct
 	int n_corrupt;						//number of ramps which contain partly new and partly old data
 	int n_missed;						//number of flags missed 
 	int n_ramps;						//number of ramps to be recorded
-	float_t trigger_level;				//voltage level required to trigger adc acquisition
 	double_t outputSize; 				//recoring size [MB]
 	char* storageDir; 					//path to storage directory
 	char* timeStamp;					//experiment timestamp
