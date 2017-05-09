@@ -66,14 +66,15 @@ typedef struct
 	int n_corrupt;						//number of ramps which contain partly new and partly old data
 	int n_missed;						//number of flags missed 
 	int n_ramps;						//number of ramps to be recorded
-	double_t outputSize; 				//recoring size [MB]
 	char* storageDir; 					//path to storage directory
 	char* timeStamp;					//experiment timestamp
 	char* ch1_filename; 				//filename of output data including path
 	char* ch2_filename; 				//filename of output data including path
 	char* imu_filename; 				//filename of output data including path
 	char* summary_filename; 			//filename of summary file including path
-	uint32_t ns_adc_buffer;				//number of samples to capture from adc
+	double_t outputSize; 				//recoring size [MB]
+	uint32_t ns_ext_buffer;				//number of samples to capture from adc on external channel
+	uint32_t ns_ref_buffer;				//number of samples to capture from adc on reference channel
 	rp_acq_trig_src_t trigger_source;  	//source for red pitaya adc trigger
 } Experiment;
 

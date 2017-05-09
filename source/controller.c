@@ -612,7 +612,7 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 		printf("Ramps: ");	    
 	} while (((scanf("%d%c", &experiment->n_ramps, &userin)!=2 || userin!='\n') && clean_stdin()));
 	
-	experiment->outputSize = (16*experiment->n_ramps*experiment->ns_adc_buffer)/(8*1e6);		
+	experiment->outputSize = (16*experiment->n_ramps*(experiment->ns_ext_buffer + experiment->ns_ref_buffer))/(8*1e6);		
 
 	//read-write mode
 	system("rw\n");
@@ -632,11 +632,11 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 	
 	char* ch1_out = (char*)malloc(100*sizeof(char));
 	strcpy(ch1_out, foldername);
-	strcat(ch1_out, "external.bin");
+	strcat(ch1_out, "ext.bin");
 	
 	char* ch2_out = (char*)malloc(100*sizeof(char));
 	strcpy(ch2_out, foldername);
-	strcat(ch2_out, "reference.bin");
+	strcat(ch2_out, "ref.bin");
 	
 	char* imu_out = (char*)malloc(100*sizeof(char));
 	strcpy(imu_out, foldername);

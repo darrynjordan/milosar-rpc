@@ -120,7 +120,8 @@ int main(int argc, char *argv[])
 	updateRegisters(&synthOne);
 	updateRegisters(&synthTwo);
 	
-	experiment.ns_adc_buffer = 2048;	
+	experiment.ns_ext_buffer = 1280;	
+	experiment.ns_ref_buffer = 100;	
 	experiment.u_max_loop = 950; 	
 	experiment.n_flags = 0;		
 	experiment.n_corrupt = 0;		
@@ -147,26 +148,32 @@ int main(int argc, char *argv[])
 	setRegister(&synthOne, 58, 0b00100001);
 	setRegister(&synthTwo, 58, 0b00100001);	
 	
-	FILE *binOutFile;	
+	FILE *extFile;
+	FILE *refFile;
+
 	struct timeval start_time, transfer_time, loop_time;	
-
 	
-	//time required to fill the adc buffer with fresh data
-	int u_adc_buffer = 1.5*experiment.ns_adc_buffer*((float)experiment.decFactor/(float)ADC_RATE)*1e6;
+	//time required to fill the adc buffer with fresh data [us]
+	int u_adc_buffer = 1.1*experiment.ns_ext_buffer*((float)experiment.decFactor/(float)ADC_RATE)*1e6;
 
-	//time used by the rp_AcqGetLatestDataRaw function to transfer data from fpga to cpu
+	//time used by the rp_AcqGetLatestDataRaw function to transfer data from fpga to cpu [us]
 	double transfer_duration = 0;
 	
-	//total time used by the data capture loop
-	//used as indication for lost flags
+	//total time used by the data capture loop used as indication for lost flags [us]
 	double loop_duration = 0;
 	
 	//buffer used to store adc samples 
-	int16_t* adcBuffer = (int16_t*)malloc(experiment.ns_adc_buffer*sizeof(int16_t*));
-	memset(adcBuffer, 0, experiment.ns_adc_buffer);
+	int16_t* extBuffer = (int16_t*)malloc(experiment.ns_ext_buffer*sizeof(int16_t*));
+	int16_t* refBuffer = (int16_t*)malloc(experiment.ns_ref_buffer*sizeof(int16_t*));
+	
+	memset(extBuffer, 0, experiment.ns_ext_buffer);
+	memset(refBuffer, 0, experiment.ns_ref_buffer);
 	
 	rp_AcqSetDecimation(RP_DEC_8);	
-	rp_AcqSetTriggerDelay(0);
+	
+	//set how many samples are recorded after trigger occurs.
+	//by default, ADC_BUFFER_SIZE/2 more samples are recorded.
+	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
 	
 	if (experiment.is_debug_mode)
 	{
@@ -177,11 +184,17 @@ int main(int argc, char *argv[])
 		printf("Capture delay: %i\n", u_adc_buffer);
 	}		
 	
-	if (!(binOutFile = fopen(experiment.ch1_filename, "wb"))) 
+	if (!(extFile = fopen(experiment.ch1_filename, "wb"))) 
 	{
-		fprintf(stderr, "file open failed, %s\n", strerror(errno));
+		fprintf(stderr, "ext file open failed, %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}	
+	
+	if (!(refFile = fopen(experiment.ch2_filename, "wb"))) 
+	{
+		fprintf(stderr, "ref file open failed, %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
 	
 	//start adc sampling
 	rp_AcqStart();	
@@ -211,7 +224,8 @@ int main(int argc, char *argv[])
 			experiment.n_flags += 1;				
 			
 			//transfer data from ADC buffer to RAM
-			rp_AcqGetLatestDataRaw(RP_CH_1, &experiment.ns_adc_buffer, adcBuffer);		
+			rp_AcqGetLatestDataRaw(RP_CH_1, &experiment.ns_ext_buffer, extBuffer);		
+			rp_AcqGetLatestDataRaw(RP_CH_2, &experiment.ns_ref_buffer, refBuffer);	
 			
 			//restart adc sampling
 			rp_AcqStart();
@@ -231,7 +245,8 @@ int main(int argc, char *argv[])
 			usleep(u_adc_buffer);			
 
 			//transfer data to SD, add additional delay 
-			fwrite(adcBuffer, sizeof(int16_t), experiment.ns_adc_buffer, binOutFile);
+			fwrite(extBuffer, sizeof(int16_t), experiment.ns_ext_buffer, extFile);
+			fwrite(refBuffer, sizeof(int16_t), experiment.ns_ref_buffer, refFile);
 		
 			//set state of ADC trigger back to external pin rising edge.
 			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);
@@ -249,7 +264,8 @@ int main(int argc, char *argv[])
 		}
 	}		
 	
-	fclose(binOutFile);		
+	fclose(extFile);		
+	fclose(refFile);
 	
 	if (experiment.n_missed > 0)
 	{
