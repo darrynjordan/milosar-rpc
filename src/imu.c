@@ -1,12 +1,16 @@
 #include "imu.h"
 
-/* File descriptor definition */
-int uart_fd = -1;
-//Global UM7 Packet for data reception
+// UART file discriptor
+int uart_fd = -1; 
+
+// global zero buffer
+uint8_t zero_buffer[4] = {0, 0, 0, 0};
+
+// global UM7 Packet for data reception
 UM7_packet global_packet;
 
-//Parse the serial data obtained through the UART interface and fit to a general packet structure
-uint8_t parse_serial_data( uint8_t* rx_data, uint8_t rx_length, UM7_packet* packet )
+// Parse the serial data obtained through the UART interface and fit to a general packet structure
+uint8_t parseSerialData(uint8_t* rx_data, uint8_t rx_length, UM7_packet* packet)
 {
 	uint8_t index;
 	// Make sure that the data buffer provided is long enough to contain a full packet
@@ -129,17 +133,39 @@ uint8_t parse_serial_data( uint8_t* rx_data, uint8_t rx_length, UM7_packet* pack
 	return 0;
 }
 
-
-
-int uartInit()
+void initIMU(void)
 {
+	initUART();		
+	getFirmwareVersion();
+	resetEKF();	
+	zeroGyros();
+	setMagReference();
+	setHomePosition();	
+	//factoryReset();
+	
+	uint8_t zero[4] = {0, 0, 0, 0};
+	uint8_t all_proc[4] = {0, 0, 0, 255};
+	//uint8_t position[4] = {0, 0, 255, 0};
+	
+	writeRegister(CREG_COM_RATES1, 4, zero);		// raw gyro, accel and mag rate	
+	writeRegister(CREG_COM_RATES2, 4, zero);		// temp rate and all raw data rate		
+	writeRegister(CREG_COM_RATES3, 4, zero);		// proc accel, gyro, mag rate		
+	writeRegister(CREG_COM_RATES4, 4, all_proc);	// all proc data rate	
+	writeRegister(CREG_COM_RATES5, 4, zero);		// quart, euler, position, velocity rate
+	writeRegister(CREG_COM_RATES6, 4, zero);		// heartbeat rate
+}
+
+void initUART(void)
+{
+	releaseConnection();
+	
 	uart_fd = open("/dev/ttyPS1", O_RDWR | O_NOCTTY | O_NDELAY);
 
 	if(uart_fd == -1)
 	{
 		cprint("[!!] ", BRIGHT, RED);
-		fprintf(stderr, "Failed to init uart.\n");
-		return -1;
+		fprintf(stderr, "Failed to init UART.\n");
+		exit(EXIT_FAILURE);
 	}
 	
 	struct termios settings;
@@ -165,7 +191,7 @@ int uartInit()
 	/* Set baud rate to 115200 */
 	speed_t baud_rate = B115200;
 
-	/* Baud rate fuctions
+	/* Baud rate functions
 	* cfsetospeed - Set output speed
 	* cfsetispeed - Set input speed
 	* cfsetspeed  - Set both output and input speed */
@@ -184,104 +210,65 @@ int uartInit()
 	tcsetattr(uart_fd, TCSANOW, &settings);
 	
 	cprint("[OK] ", BRIGHT, GREEN);
-	printf("UART initialised.\n");
-
-	return 0;
+	printf("UART Initialised.\n");
 }
 
-int uartReadRaw(uint8_t* buffer, int size)
+int rxPacket(int size)
 {
-	/* Don't block serial read */
-	fcntl(uart_fd, F_SETFL, FNDELAY); 
-  
-	if(uart_fd == -1)
-	{
-		cprint("[!!] ", BRIGHT, RED);
-		fprintf(stderr, "Failed to read from UART.\n");
-		return -1;
-	}
-		
-	if(read(uart_fd, (void*)buffer, size) < 0)
-	{
-		//No data yet avaliable
-		return -1;
-	}
-	else
-	{
-		buffer[size] = '\0';		
-		return 0;
-	}  
+	tcflush(uart_fd, TCIFLUSH); 
 	
-	tcflush(uart_fd, TCIFLUSH); //flush the uart buffer
-	
-}
-
-int uartRead(int size)
-{
-	/* Don't block serial read */
+	// don't block serial read 
 	fcntl(uart_fd, F_SETFL, FNDELAY); 
+	
+	unsigned char rx_buffer[size];
   
 	while(1)
 	{
 		if(uart_fd == -1)
 		{
 			cprint("[!!] ", BRIGHT, RED);
-			fprintf(stderr, "Failed to read from UART.\n");
+			printf("UART has not been initialized.\n");
 			return -1;
 		}
 		
-		unsigned char rx_buffer[size];
-		
+		// perform uart read
 		int rx_length = read(uart_fd, (void*)rx_buffer, size);
 		
-		if (rx_length < 0)
+		if (rx_length == -1)
 		{
-			/* No data yet avaliable, check again */
+			//printf("No UART data available yet, check again.\n");
 			if(errno == EAGAIN)
 			{
-				//fprintf(stderr, "AGAIN!\n");
+				// an operation that would block was attempted on an object that has non-blocking mode selected.
+				//printf("UART read blocked, try again.\n");
 				continue;
-				/* Error differs */
 			} 
 			else
 			{
-				fprintf(stderr, "Error!\n");
+				printf("Error reading from UART.\n");
 				return -1;
 			}
 		  
 		}
-		else if (rx_length == 0)
-		{
-		//no data waiting
-		}
-		else
-		{
-			rx_buffer[rx_length] = '\0';
-			if(parse_serial_data(rx_buffer,rx_length,&global_packet) == 0)
+		else if (rx_length == size)
+		{	
+			if(parseSerialData(rx_buffer, rx_length, &global_packet) == 0)
 			{
-				if (global_packet.address == 0xfd)
-				{
-					return -2; //bad checksum
-				}
-				else
-				{
-					return 0; //All good!
-				}
+				//printf("All good.\n");
+				return 0; 
 			}
 			else
 			{
-				return -3; //No data received
-			}	
-	
-			break;		
+				//printf("No useable packet received.\n");
+				return -2; 		
+			}		
 		}
-	} 
-	
-	tcflush(uart_fd, TCIFLUSH);  
+	}  
 }
 
- int uartWrite(UM7_packet* packet){
-  
+
+int txPacket(UM7_packet* packet)
+{  
 	/* Write some sample data into UART */
 	/* ----- TX BYTES ----- */
 	int msg_len = packet->n_data_bytes + 7;
@@ -301,12 +288,12 @@ int uartRead(int size)
 	
 	for (i = 0; i < packet->n_data_bytes;i++)
 	{
-	  tx_buffer[5+i] = packet->data[i];
-	  checksum+= packet->data[i];
+		tx_buffer[5 + i] = packet->data[i];
+		checksum += packet->data[i];
 	}
 	
-	tx_buffer[5+i] = checksum >> 8;
-	tx_buffer[6+i] = checksum & 0xff;
+	tx_buffer[5 + i] = checksum >> 8;
+	tx_buffer[6 + i] = checksum & 0xff;
 	tx_buffer[msg_len++] = 0x0a; //New line numerical value
 
 	if(uart_fd != -1)
@@ -324,7 +311,8 @@ int uartRead(int size)
 	return 0;
 }
 
-int releaseConnection()
+
+int releaseConnection(void)
 {
 	tcflush(uart_fd, TCIFLUSH);
 	close(uart_fd);
@@ -333,30 +321,10 @@ int releaseConnection()
 }
 
 
-int getFirmwareVersion(void)
+void getFirmwareVersion(void)
 {
-	UM7_packet txpacket;
-	txpacket.address = 0xAA;
-	txpacket.packet_type = 0x00;
-	txpacket.n_data_bytes = 0;
-
-	if(uartWrite(&txpacket) < 0)
-	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Uart write error\n");
-		return -1;
-	}
-
-	//If reveived data was bad or wrong address, repeat transmission and reception
-	while((uartRead(20) < 0)||(global_packet.address!=txpacket.address))
-	{
-		if(uartWrite(&txpacket) < 0)
-		{
-			cprint("[!!] ", BRIGHT, RED);
-			printf("Uart write error\n");
-			return -1;
-		}
-	}
+	writeRegister(GET_FW_REVISION, 0, zero_buffer);
+	checkCommandSuccess("Check Firmware");
 	
 	char FWrev[5];
 	FWrev[0] = global_packet.data[0];
@@ -365,224 +333,255 @@ int getFirmwareVersion(void)
 	FWrev[3] = global_packet.data[3];
 	FWrev[4] = '\0'; //Null-terminate string
 
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Firmware version: %s\n", FWrev);
+	cprint("[**] ", BRIGHT, CYAN);
+	printf("Firmware Version: %s\n", FWrev);
+}
+
+
+void flashCommit(void)
+{
+	writeRegister(FLASH_COMMIT, 0, zero_buffer);	
+	checkCommandSuccess("Flash Commit");
+}
+
+
+void factoryReset(void)
+{
+	writeRegister(RESET_TO_FACTORY, 0, zero_buffer);
+	checkCommandSuccess("Factory Reset");
+}
+
+
+void zeroGyros(void)
+{
+	writeRegister(ZERO_GYROS, 0, zero_buffer);
+	checkCommandSuccess("Zero Gyros");
+}
+
+
+void setHomePosition(void)
+{	
+	writeRegister(SET_HOME_POSITION, 0, zero_buffer);	
+	checkCommandSuccess("Set GPS Home");
+}
+
+
+void setMagReference(void)
+{
+	writeRegister(SET_MAG_REFERENCE, 0, zero_buffer);
+	checkCommandSuccess("Set Mag Reference");
+}
+
+
+void resetEKF(void)
+{
+	writeRegister(RESET_EKF, 0, zero_buffer);
+	checkCommandSuccess("Reset EKF");
+}
+
+
+void writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data)
+{
+	UM7_packet packet;		
+
+	packet.address = address;
+	packet.packet_type = 0x00;
+	packet.n_data_bytes = n_data_bytes;	
 	
-	return 0;
-}
-
-
-int flashCommit(void)
-{
-	UM7_packet txpacket;
-	txpacket.address = 0xAB;
-	txpacket.packet_type = 0x00;
-	txpacket.n_data_bytes = 0;
-
-	if(uartWrite(&txpacket) < 0)
+	if (n_data_bytes != 0)
 	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Uart write error\n");
-		return -1;
-	}
-
-	//If reveived data was bad or wrong address, repeat transmission and reception
-	while((uartRead(20) < 0)||(global_packet.address!=txpacket.address))
-	{
-		if(uartWrite(&txpacket) < 0)
-		{
-			printf("Uart write error\n");
-			return -1;
-		}
-	}
-
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Flash Commit.\n");
-	return 0;
-}
-
-
-int factoryReset(void)
-{
-	UM7_packet txpacket;
-	txpacket.address = 0xAC;
-	txpacket.packet_type = 0x00;
-	txpacket.n_data_bytes = 0;
-
-	if(uartWrite(&txpacket) < 0)
-	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Uart write error\n");
-		return -1;
-	}
-
-	//If reveived data was bad or wrong address, repeat transmission and reception
-	while((uartRead(20) < 0)||(global_packet.address!=txpacket.address))
-	{
-		if(uartWrite(&txpacket) < 0)
-		{
-			cprint("[!!] ", BRIGHT, RED);
-			printf("Uart write error\n");
-			return -1;
-		}
-	}
-
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Factory Reset\n");
-	return 0;
-}
-
-int zeroGyros(void)
-{
-	UM7_packet txpacket;
-	txpacket.address = 0xAD;
-	txpacket.packet_type = 0x00;
-	txpacket.n_data_bytes = 0;
-
-	if(uartWrite(&txpacket) < 0)
-	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Uart write error\n");
-		return -1;
-	}
-
-	//If reveived data was bad or wrong address, repeat transmission and reception
-	while((uartRead(20) < 0)||(global_packet.address!=txpacket.address))
-	{
-		if(uartWrite(&txpacket) < 0)
-		{
-			cprint("[!!] ", BRIGHT, RED);
-			printf("Uart write error\n");
-			return -1;
-		}
-	}
-
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Zero gyros\n");
-	return 0;
-}
-
-int setHomePosition(void)
-{
-	UM7_packet txpacket;
-	txpacket.address = 0xAE;
-	txpacket.packet_type = 0x00;
-	txpacket.n_data_bytes = 0;
-
-	if(uartWrite(&txpacket) < 0)
-	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Uart write error\n");
-		return -1;
-	}
-
-	//If reveived data was bad or wrong address, repeat transmission and reception
-	while((uartRead(20) < 0)||(global_packet.address!=txpacket.address))
-	{
-		if(uartWrite(&txpacket) < 0)
-		{
-			cprint("[!!] ", BRIGHT, RED);
-			printf("Uart write error\n");
-			return -1;
-		}
-	}
+		// packet contains data
+		packet.packet_type |= PT_HAS_DATA; 					
+	}	
 	
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Set home position.\n");
-	return 0;
-}
-int setMagReference(void)
-{
-	UM7_packet txpacket;
-	txpacket.address = 0xB0;
-	txpacket.packet_type = 0x00;
-	txpacket.n_data_bytes = 0;
-
-	if(uartWrite(&txpacket) < 0)
+	// populate packet data
+	for (int i = 0; i < n_data_bytes; i++)
 	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Uart write error\n");
-		return -1;
-	}
+		packet.data[i] = data[i];
+	}		
 
-	//If reveived data was bad or wrong address, repeat transmission and reception
-	while((uartRead(20) < 0)||(global_packet.address != txpacket.address))
+	if (txPacket(&packet) < 0)
 	{
-		if(uartWrite(&txpacket) < 0)
-		{
-			cprint("[!!] ", BRIGHT, RED);
-			printf("Uart write error\n");
-			return -1;
-		}
-	}
-
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Set mag reference.\n");
-	return 0;
-}
-
-int resetEKF(void)
-{
-	UM7_packet txpacket;
-	txpacket.address = 0xB3;
-	txpacket.packet_type = 0x00;
-	txpacket.n_data_bytes = 0;
-
-	if(uartWrite(&txpacket) < 0)
-	{
-		cprint("[!!] ", BRIGHT, RED);
-		printf("Uart write error\n");
-		return -1;
-	}
-
-	/* //If reveived data was bad or wrong address, repeat transmission and reception */
-	/* while((uart_read(20) < 0)||(packet0.Address!=txpacket.Address)){ */
-	/*   if(uart_write(&txpacket) < 0){ */
-	/*     printf("Uart write error\n"); */
-	/*     return -1; */
-	/*   } */
-	/* } */
-
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("Reset EKF\n");
-	return 0;
-}
-
-
-// write to a 32 bit register
-void writeRegister(uint8_t address, uint8_t *data)
-{
-	UM7_packet packet;
-	
-	packet.packet_type = 0b10000000; 	// has data
-	packet.address = address;		    // register address
-	packet.n_data_bytes = 4;			// 32-bit register
-	packet.data[0] = data[0];		
-	packet.data[1] = data[1];
-	packet.data[2] = data[2];
-	packet.data[3] = data[3];	
-
-	if(uartWrite(&packet) < 0)
 		printf("UART baud rate write error\n");	
-	
-	int attempt = 0;	
+	}	
+		
+	int attempt_n = 0;	
+		
 	//If reveived data was bad or wrong address, repeat transmission and reception
-	while((uartRead(25) < 0)||(global_packet.address != packet.address))
+	while ((rxPacket(20) < 0) || (global_packet.address != packet.address))
 	{
-		if(uartWrite(&packet) < 0)
-			printf("UART write error\n");
+		if (txPacket(&packet) < 0)
+		{
+			printf("UART baud rate write error\n");	
+		}	
 			
-		if(attempt++ == 100)
+		if (attempt_n++ == 100)
 		{
 			cprint("[!!] ", BRIGHT, RED);
-			printf("No reply from imu register %i.\n", packet.address);
+			printf("No response from UM7_R%i after 100 attempts.\n", packet.address);
 			break;
 		}
+	}	
+}
+
+
+void checkCommandSuccess(char* command_name)
+{
+	if (global_packet.packet_type & PT_CF)
+	{
+		cprint("[!!] ", BRIGHT, RED);
+		printf("%s Error.\n", command_name);
+		exit(EXIT_FAILURE);
+	}
+	else
+	{
+		cprint("[OK] ", BRIGHT, GREEN);
+		printf("%s.\n", command_name);
 	}
 }
 
 
+void readRegister(uint8_t address)
+{
+	rxPacket(60);
+	//writeRegister(address, 0, zero_buffer);
+	//printf("IMU Register %i: %f\n", address, bit32ToFloat(bit8ArrayToBit32(global_packet.data)));	
+	
+	if ((global_packet.address == address) && (global_packet.packet_type &= PT_IS_BATCH))
+	{				
+		system("clear\n");
+		printf("UM7_R%i: %f\n", global_packet.address+0, bit32ToFloat(bit8ArrayToBit32(&global_packet.data[0])));
+		printf("UM7_R%i: %f\n", global_packet.address+1, bit32ToFloat(bit8ArrayToBit32(&global_packet.data[4])));
+		printf("UM7_R%i: %f\n", global_packet.address+2, bit32ToFloat(bit8ArrayToBit32(&global_packet.data[8])));
+		printf("UM7_R%i: %f\n", global_packet.address+3, bit32ToFloat(bit8ArrayToBit32(&global_packet.data[12])));
+	}
+	else if (global_packet.address == address)
+	{
+		printf("UM7_R%i: %f\n", global_packet.address, bit32ToFloat(bit8ArrayToBit32(&global_packet.data[0])));
+	}
+	
+}
 
+
+float bit32ToFloat(uint32_t bit32)
+{
+	//https://en.wikipedia.org/wiki/Single-precision_floating-point_format	
+	
+	int sign = 1;
+	float fraction = 1;	
+	int exponent = -127;		
+	
+	float singleFloat = 0;		
+	
+	if (bit32 & (uint32_t)(1 << 31))
+	{
+		sign = -1;
+	}
+	
+	for (int i = 1; i < 24; i++)
+	{
+		if (bit32 & (uint32_t)(1 << (23 - i)))
+		{
+			fraction += pow(2, -i);
+		}
+	}
+	
+	for (int i = 0; i < 8; i++)
+	{
+		if (bit32 & (uint32_t)(1 << (23 + i)))
+		{
+			exponent += pow(2, i);
+		}
+	}		
+	
+	singleFloat = sign*fraction*pow(2, exponent);
+	
+	return singleFloat;
+}
+
+
+void procHealth(UM7_packet* healthPacket)
+{
+	uint32_t healthBit32 = bit8ArrayToBit32(healthPacket->data);
+	
+	if (healthBit32 & (uint32_t)(1 << 0)) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("No GPS data for 2 seconds.\n");
+	}
+	
+	if (healthBit32 & (uint32_t)(1 << 1)) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Mag failed to init on startup.\n");
+	}		
+	
+	if (healthBit32 & (uint32_t)(1 << 2))
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Gyro failed to init on startup.\n");
+	}		 
+	 
+	if (healthBit32 & (uint32_t)(1 << 3)) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Acc failed to init on startup.\n");
+	}		
+	
+	if (healthBit32 & (uint32_t)(1 << 4)) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Acc norm exceeded - aggressive acceleration detected.\n");
+	}	
+	
+	if (healthBit32 & (uint32_t)(1 << 5)) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Mag norm exceeded - bad calibration.\n");
+	}
+	
+	if (healthBit32 & (uint32_t)(1 << 8))
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("UART overflow - reduce broadcast rates.\n");
+	}
+	 
+	
+	int satInView = 0;
+	int satUsed = 0;
+	
+	for (int i = 0; i < 6; i++)
+	{
+		if (healthBit32 & (uint32_t)(1 << (10 + i)))
+		{
+			satInView += pow(2, i);
+		}
+		
+		if (healthBit32 & (uint32_t)(1 << (26 + i)))
+		{
+			satUsed += pow(2, i);
+		}
+	}
+	
+	cprint("[**] ", BRIGHT, CYAN);
+	printf("Satellites currently in view: %i\n", satInView);	
+	
+	cprint("[**] ", BRIGHT, CYAN);
+	printf("Satellites used in position calculation: %i\n", satUsed);
+}
+
+
+uint32_t bit8ArrayToBit32(uint8_t *data)
+{
+	uint32_t bit32 = 0;
+	
+	bit32 = (uint32_t)(data[3] << 0);
+	bit32 += (uint32_t)(data[2] << 8);
+	bit32 += (uint32_t)(data[1] << 16);
+	bit32 += (uint32_t)(data[0] << 24);
+	
+	return bit32;
+}
 
 
 

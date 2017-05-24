@@ -1,18 +1,29 @@
-#include "includes.h"
 #include <unistd.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
+
+#include "controller.h"
+#include "rp.h"
+#include "colour.h"
+#include "imu.h"
 
 void splash(Experiment *experiment);
 void help(void);
+void parse_uart(FILE* imuFile);
 
-//Global UM7 receive packet
+//global UM7 receive packet
 extern UM7_packet global_packet;
+
+//global experiment active flag
+int is_experiment_active = false;
 
 int main(int argc, char *argv[])
 {
+	pthread_t imu_thread;
+	
 	int opt;
 	int is_synth_one = 0;
 	int is_synth_two = 0;
@@ -30,7 +41,7 @@ int main(int argc, char *argv[])
 	experiment.is_debug_mode = 0;
 	experiment.adc_channel = 0;
 
-	// Retrieve the options:
+	//retrieve command-line options
     while ((opt = getopt(argc, argv, "dib:c:t:l:rh")) != -1 )
     {
         switch (opt)
@@ -113,9 +124,6 @@ int main(int argc, char *argv[])
 	setRegister(&synthOne, 2, 0b00000100);
 	setRegister(&synthTwo, 2, 0b00000100);
 
-	//initialise IMU and configure update rates
-	if (experiment.is_imu) initIMU();
-
 	//send register array values to synths
 	updateRegisters(&synthOne);
 	updateRegisters(&synthTwo);
@@ -150,6 +158,7 @@ int main(int argc, char *argv[])
 	
 	FILE *extFile;
 	FILE *refFile;
+	FILE *imuFile;
 
 	struct timeval start_time, transfer_time, loop_time;	
 	
@@ -196,6 +205,27 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 	
+	if (!(imuFile = fopen(experiment.imu_filename, "wb"))) 
+	{		
+		cprint("[!!] ", BRIGHT, RED);
+		printf("IMU file open failed.\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	//initialise IMU and configure update rates
+	if (experiment.is_imu) 
+	{
+		initIMU();
+		
+		is_experiment_active = true;
+		
+		if (pthread_create(&imu_thread, NULL, (void*)parse_uart, imuFile))
+		{
+			cprint("[!!] ", BRIGHT, RED);
+			printf("Error launching imu thread.\n");
+		}
+	}
+	
 	//start adc sampling
 	rp_AcqStart();	
 	
@@ -239,12 +269,14 @@ int main(int argc, char *argv[])
 			{				
 				experiment.n_corrupt += 1;		
 				printf("Data transfer took %.2f us\n", transfer_duration);
+			}
+			else
+			{
+				//allow enough time for the adc buffer to fill with new data 
+				usleep(u_adc_buffer);					
 			}	
 			
-			//allow enough time for the adc buffer to fill with new data 
-			usleep(u_adc_buffer);			
-
-			//transfer data to SD, add additional delay 
+			//transfer buffer to SD
 			fwrite(extBuffer, sizeof(int16_t), experiment.ns_ext_buffer, extFile);
 			fwrite(refBuffer, sizeof(int16_t), experiment.ns_ref_buffer, refFile);
 		
@@ -264,8 +296,14 @@ int main(int argc, char *argv[])
 		}
 	}		
 	
+	is_experiment_active = false;
+
+	//join all threads
+	pthread_join(imu_thread, NULL);
+	
 	fclose(extFile);		
 	fclose(refFile);
+	fclose(imuFile);
 	
 	if (experiment.n_missed > 0)
 	{
@@ -291,6 +329,10 @@ int main(int argc, char *argv[])
 		printf("Storage location: %s/%s\n", experiment.storageDir, experiment.timeStamp);
 	}
 
+	//disable ramping now that specified number of ramps have been synthesized
+	setRegister(&synthOne, 58, 0b00100000);
+	setRegister(&synthTwo, 58, 0b00100000);
+	
 	releaseRP();
 
 	return EXIT_SUCCESS;
@@ -329,6 +371,7 @@ void splash(Experiment *experiment)
 	}
 }
 
+
 void help(void)
 {
 	system("clear\n");
@@ -342,4 +385,31 @@ void help(void)
 	printf(" -r: write output files to /tmp\n");
 	printf(" -c: input adc channel \t(0 or 1)\n");	
 	exit(EXIT_SUCCESS);	
+}
+
+
+void parse_uart(FILE* imuFile)
+{		
+	cprint("[**] ", BRIGHT, CYAN);
+	printf("IMU thread launched.\n");
+	
+	//while experiment is active
+	while (is_experiment_active)
+	{	
+		//process UART buffer and check for valid packets
+		if (rxPacket(100) == 0)
+		{		
+			//process valid packet data
+			if ((global_packet.address == DREG_ALL_PROC) && (global_packet.packet_type &= PT_IS_BATCH))
+			{		
+				for (int i = 0; i < 12; i++)
+				{
+					float data = bit32ToFloat(bit8ArrayToBit32(&global_packet.data[4*i]));
+					fwrite(&data, sizeof(float), 1, imuFile);
+				}		
+				
+				usleep(0.1e6);			
+			}
+		}	
+	}	
 }

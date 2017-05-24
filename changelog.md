@@ -1,9 +1,9 @@
 # RPC v0.9.7
 
- * Improved command line flag/argument passing
- * Command line flags include: debug mode, recording channel, imu enable, ramp parameters
- * Improved debug mode display
- * Improved .ini structure 
+ * improved command line flag/argument passing
+ * command line flags include: debug mode, recording channel, imu enable, ramp parameters
+ * improved debug mode display
+ * improved .ini structure 
 
 # RPC v0.9.8
 
@@ -19,3 +19,7 @@
 
  * using arm-linux-gnueabihf-gcc on newer os
  * changed path to rp library
+
+# M-RPC v2.1.0
+
+ * integration of threaded imu record

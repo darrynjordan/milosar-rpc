@@ -1,7 +1,6 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
-#include "includes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +11,10 @@
 
 #include "rp.h"
 #include "mon.h"
+#include "colour.h"
+#include "ini.h"
 
-#define VERSION "2.0.0"
+#define VERSION "2.1.0"
 #define MAX_RAMPS 8
 #define NUM_REGISTERS 142
 #define ADC_RATE 125e6
@@ -105,7 +106,6 @@ void decimalToBinary(uint64_t decimalValue, int* binaryValue);
 void printBinary(int* binaryValue, int paddedSize);
 //int  continuousAcquire(int channel, int kbytes, int dec, char* filename_ch1, char* filename_ch2, char* filename_imu, int is_imu_en);
 int  clean_stdin();
-void initIMU(void);
 
 double vcoOut(uint32_t fracNum);
 double bnwOut(double rampInc, uint16_t);
