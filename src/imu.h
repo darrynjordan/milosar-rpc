@@ -13,6 +13,7 @@
 #include "colour.h"
 
 #define PACKET_DATA_SIZE 		48
+#define N_TX_ATTEMPTS 			100
 
 #define CREG_COM_SETTINGS 		0x00
 #define CREG_COM_RATES1 		0x01
@@ -74,6 +75,7 @@ typedef struct UM7_packet_struct
   uint8_t n_data_bytes;
 } UM7_packet;
 
+uint8_t* getUARTbuffer(int size);
 void initUART(void);
 void initIMU(void);
 int rxPacket(int size);

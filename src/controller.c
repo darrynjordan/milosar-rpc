@@ -589,7 +589,7 @@ void triggerSynthesizers(Synthesizer *synthOne, Synthesizer *synthTwo)
 void parallelTrigger(Synthesizer *synthOne, Synthesizer *synthTwo)
 {		
 	cprint("[??] ", BRIGHT, BLUE);
-	printf("Press enter to trigger...\n");
+	printf("Press enter to trigger...");
 	
 	//Dirty, but it works...
 	getchar();

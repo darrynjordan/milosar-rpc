@@ -19,6 +19,7 @@ extern UM7_packet global_packet;
 
 //global experiment active flag
 int is_experiment_active = false;
+int is_imu_allowed = false;
 
 int main(int argc, char *argv[])
 {
@@ -205,19 +206,20 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 	
-	if (!(imuFile = fopen(experiment.imu_filename, "wb"))) 
-	{		
-		cprint("[!!] ", BRIGHT, RED);
-		printf("IMU file open failed.\n");
-		exit(EXIT_FAILURE);
-	}
-	
 	//initialise IMU and configure update rates
 	if (experiment.is_imu) 
 	{
+		if (!(imuFile = fopen(experiment.imu_filename, "wb"))) 
+		{		
+			cprint("[!!] ", BRIGHT, RED);
+			printf("IMU file open failed.\n");
+			exit(EXIT_FAILURE);
+		}
+		
 		initIMU();
 		
 		is_experiment_active = true;
+		is_imu_allowed = true;
 		
 		if (pthread_create(&imu_thread, NULL, (void*)parse_uart, imuFile))
 		{
@@ -247,6 +249,9 @@ int main(int argc, char *argv[])
 		//trigger source set to zero implies that data capture is complete
 		if (experiment.trigger_source == 0)
 		{
+			//disable imu thread activity
+			is_imu_allowed = false;
+			
 			//get start time
 			gettimeofday(&start_time, NULL);	
 			
@@ -272,8 +277,8 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				//allow enough time for the adc buffer to fill with new data 
-				usleep(u_adc_buffer);					
+				//allow enough time for the adc buffer to fill with new data
+				//usleep(u_adc_buffer);		 - causes spurious lags!!! Use with caution.
 			}	
 			
 			//transfer buffer to SD
@@ -285,7 +290,10 @@ int main(int argc, char *argv[])
 			
 			//get loop time
 			gettimeofday(&loop_time, NULL);				
-			loop_duration = elapsed_us(start_time, loop_time);			
+			loop_duration = elapsed_us(start_time, loop_time);	
+			
+			//enable imu thread activity
+			is_imu_allowed = true;		
 
 			//check to see if a flag could be lost
 			if (loop_duration > experiment.u_max_loop) 
@@ -303,7 +311,7 @@ int main(int argc, char *argv[])
 	
 	fclose(extFile);		
 	fclose(refFile);
-	fclose(imuFile);
+	if (experiment.is_imu) fclose(imuFile);
 	
 	if (experiment.n_missed > 0)
 	{
@@ -396,20 +404,10 @@ void parse_uart(FILE* imuFile)
 	//while experiment is active
 	while (is_experiment_active)
 	{	
-		//process UART buffer and check for valid packets
-		if (rxPacket(100) == 0)
-		{		
-			//process valid packet data
-			if ((global_packet.address == DREG_ALL_PROC) && (global_packet.packet_type &= PT_IS_BATCH))
-			{		
-				for (int i = 0; i < 12; i++)
-				{
-					float data = bit32ToFloat(bit8ArrayToBit32(&global_packet.data[4*i]));
-					fwrite(&data, sizeof(float), 1, imuFile);
-				}		
-				
-				usleep(0.1e6);			
-			}
-		}	
-	}	
+		//prevent intensive processing while is_imu_allowed is false
+		while(is_imu_allowed == false);
+		
+		fwrite(getUARTbuffer(100), sizeof(uint8_t), 100, imuFile);
+		usleep(100e3);
+	}
 }

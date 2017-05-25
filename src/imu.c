@@ -1,12 +1,15 @@
 #include "imu.h"
 
-// UART file discriptor
+//uart file discriptor
 int uart_fd = -1; 
 
-// global zero buffer
+//imu zero buffer
 uint8_t zero_buffer[4] = {0, 0, 0, 0};
 
-// global UM7 Packet for data reception
+//uart receive buffer
+uint8_t* uart_rx_buffer;
+
+//global UM7 Packet for data reception
 UM7_packet global_packet;
 
 // Parse the serial data obtained through the UART interface and fit to a general packet structure
@@ -133,6 +136,7 @@ uint8_t parseSerialData(uint8_t* rx_data, uint8_t rx_length, UM7_packet* packet)
 	return 0;
 }
 
+
 void initIMU(void)
 {
 	initUART();		
@@ -154,6 +158,7 @@ void initIMU(void)
 	writeRegister(CREG_COM_RATES5, 4, zero);		// quart, euler, position, velocity rate
 	writeRegister(CREG_COM_RATES6, 4, zero);		// heartbeat rate
 }
+
 
 void initUART(void)
 {
@@ -210,29 +215,46 @@ void initUART(void)
 	tcsetattr(uart_fd, TCSANOW, &settings);
 	
 	cprint("[OK] ", BRIGHT, GREEN);
-	printf("UART Initialised.\n");
+	printf("UART initialised.\n");
 }
+
 
 int rxPacket(int size)
 {
-	tcflush(uart_fd, TCIFLUSH); 
+	getUARTbuffer(size);
+	
+	if (parseSerialData(uart_rx_buffer, size, &global_packet) == 0)
+	{
+		//printf("All good.\n");
+		return 0; 
+	}
+	else
+	{
+		//printf("No useable packet received.\n");
+		return -1; 		
+	}
+}
+
+
+uint8_t* getUARTbuffer(int size)
+{
+	//tcflush(uart_fd, TCIFLUSH); 
 	
 	// don't block serial read 
 	fcntl(uart_fd, F_SETFL, FNDELAY); 
 	
-	unsigned char rx_buffer[size];
+	uart_rx_buffer = (uint8_t *)malloc(size*sizeof(uint8_t));
   
 	while(1)
 	{
-		if(uart_fd == -1)
+		if (uart_fd == -1)
 		{
 			cprint("[!!] ", BRIGHT, RED);
 			printf("UART has not been initialized.\n");
-			return -1;
 		}
 		
 		// perform uart read
-		int rx_length = read(uart_fd, (void*)rx_buffer, size);
+		int rx_length = read(uart_fd, (void*)uart_rx_buffer, size);
 		
 		if (rx_length == -1)
 		{
@@ -246,22 +268,12 @@ int rxPacket(int size)
 			else
 			{
 				printf("Error reading from UART.\n");
-				return -1;
 			}
 		  
 		}
 		else if (rx_length == size)
 		{	
-			if(parseSerialData(rx_buffer, rx_length, &global_packet) == 0)
-			{
-				//printf("All good.\n");
-				return 0; 
-			}
-			else
-			{
-				//printf("No useable packet received.\n");
-				return -2; 		
-			}		
+			return uart_rx_buffer;
 		}
 	}  
 }
@@ -293,8 +305,8 @@ int txPacket(UM7_packet* packet)
 	}
 	
 	tx_buffer[5 + i] = checksum >> 8;
-	tx_buffer[6 + i] = checksum & 0xff;
-	tx_buffer[msg_len++] = 0x0a; //New line numerical value
+	tx_buffer[6 + i] = checksum & 0xFF;
+	tx_buffer[msg_len++] = 0x0A; //New line numerical value
 
 	if(uart_fd != -1)
 	{
@@ -324,7 +336,7 @@ int releaseConnection(void)
 void getFirmwareVersion(void)
 {
 	writeRegister(GET_FW_REVISION, 0, zero_buffer);
-	checkCommandSuccess("Check Firmware");
+	checkCommandSuccess("Check firmware");
 	
 	char FWrev[5];
 	FWrev[0] = global_packet.data[0];
@@ -334,42 +346,42 @@ void getFirmwareVersion(void)
 	FWrev[4] = '\0'; //Null-terminate string
 
 	cprint("[**] ", BRIGHT, CYAN);
-	printf("Firmware Version: %s\n", FWrev);
+	printf("UM7 firmware version: %s\n", FWrev);
 }
 
 
 void flashCommit(void)
 {
 	writeRegister(FLASH_COMMIT, 0, zero_buffer);	
-	checkCommandSuccess("Flash Commit");
+	checkCommandSuccess("Flash commit");
 }
 
 
 void factoryReset(void)
 {
 	writeRegister(RESET_TO_FACTORY, 0, zero_buffer);
-	checkCommandSuccess("Factory Reset");
+	checkCommandSuccess("Factory reset");
 }
 
 
 void zeroGyros(void)
 {
 	writeRegister(ZERO_GYROS, 0, zero_buffer);
-	checkCommandSuccess("Zero Gyros");
+	checkCommandSuccess("Zero gyros");
 }
 
 
 void setHomePosition(void)
 {	
 	writeRegister(SET_HOME_POSITION, 0, zero_buffer);	
-	checkCommandSuccess("Set GPS Home");
+	checkCommandSuccess("Set GPS home");
 }
 
 
 void setMagReference(void)
 {
 	writeRegister(SET_MAG_REFERENCE, 0, zero_buffer);
-	checkCommandSuccess("Set Mag Reference");
+	checkCommandSuccess("Set mag reference");
 }
 
 
@@ -415,10 +427,10 @@ void writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data)
 			printf("UART baud rate write error\n");	
 		}	
 			
-		if (attempt_n++ == 100)
+		if (attempt_n++ == N_TX_ATTEMPTS)
 		{
 			cprint("[!!] ", BRIGHT, RED);
-			printf("No response from UM7_R%i after 100 attempts.\n", packet.address);
+			printf("No response from UM7 R%i.\n", packet.address);
 			break;
 		}
 	}	
