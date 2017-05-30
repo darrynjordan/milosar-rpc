@@ -238,8 +238,6 @@ int rxPacket(int size)
 
 uint8_t* getUARTbuffer(int size)
 {
-	//tcflush(uart_fd, TCIFLUSH); 
-	
 	// don't block serial read 
 	fcntl(uart_fd, F_SETFL, FNDELAY); 
 	
@@ -276,6 +274,8 @@ uint8_t* getUARTbuffer(int size)
 			return uart_rx_buffer;
 		}
 	}  
+	
+	tcflush(uart_fd, TCIFLUSH); 
 }
 
 
@@ -475,6 +475,19 @@ void readRegister(uint8_t address)
 }
 
 
+uint32_t bit8ArrayToBit32(uint8_t *data)
+{
+	uint32_t bit32 = 0;
+	
+	bit32 = (uint32_t)(data[3] << 0);
+	bit32 += (uint32_t)(data[2] << 8);
+	bit32 += (uint32_t)(data[1] << 16);
+	bit32 += (uint32_t)(data[0] << 24);
+	
+	return bit32;
+}
+
+
 float bit32ToFloat(uint32_t bit32)
 {
 	//https://en.wikipedia.org/wiki/Single-precision_floating-point_format	
@@ -580,19 +593,6 @@ void procHealth(UM7_packet* healthPacket)
 	
 	cprint("[**] ", BRIGHT, CYAN);
 	printf("Satellites used in position calculation: %i\n", satUsed);
-}
-
-
-uint32_t bit8ArrayToBit32(uint8_t *data)
-{
-	uint32_t bit32 = 0;
-	
-	bit32 = (uint32_t)(data[3] << 0);
-	bit32 += (uint32_t)(data[2] << 8);
-	bit32 += (uint32_t)(data[1] << 16);
-	bit32 += (uint32_t)(data[0] << 24);
-	
-	return bit32;
 }
 
 

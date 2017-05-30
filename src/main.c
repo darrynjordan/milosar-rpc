@@ -219,7 +219,6 @@ int main(int argc, char *argv[])
 		initIMU();
 		
 		is_experiment_active = true;
-		is_imu_allowed = true;
 		
 		if (pthread_create(&imu_thread, NULL, (void*)parse_uart, imuFile))
 		{
@@ -239,6 +238,9 @@ int main(int argc, char *argv[])
 
 	//trigger synth's to begin generating ramps at the same time
 	parallelTrigger(&synthOne, &synthTwo);	
+	
+	//allow imu thread activity
+	is_imu_allowed = true;
 	
 	//loop until the specified number of ramps have been detected
 	while (experiment.n_flags < experiment.n_ramps) 								//(n_flags < (pow(2, 13) - 1 - 1)/4 - n_missed)
@@ -398,16 +400,13 @@ void help(void)
 
 void parse_uart(FILE* imuFile)
 {		
-	cprint("[**] ", BRIGHT, CYAN);
-	printf("IMU thread launched.\n");
-	
 	//while experiment is active
 	while (is_experiment_active)
 	{	
 		//prevent intensive processing while is_imu_allowed is false
 		while(is_imu_allowed == false);
 		
-		fwrite(getUARTbuffer(100), sizeof(uint8_t), 100, imuFile);
+		fwrite(getUARTbuffer(200), sizeof(uint8_t), 200, imuFile);		
 		usleep(100e3);
 	}
 }
