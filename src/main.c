@@ -130,7 +130,6 @@ int main(int argc, char *argv[])
 	updateRegisters(&synthTwo);
 	
 	experiment.ns_ext_buffer = 1280;	
-	experiment.ns_ref_buffer = 100;	
 	experiment.u_max_loop = 950; 	
 	experiment.n_flags = 0;		
 	experiment.n_corrupt = 0;		
@@ -158,7 +157,6 @@ int main(int argc, char *argv[])
 	setRegister(&synthTwo, 58, 0b00100001);	
 	
 	FILE *extFile;
-	FILE *refFile;
 	FILE *imuFile;
 
 	struct timeval start_time, transfer_time, loop_time;	
@@ -173,11 +171,8 @@ int main(int argc, char *argv[])
 	double loop_duration = 0;
 	
 	//buffer used to store adc samples 
-	int16_t* extBuffer = (int16_t*)malloc(experiment.ns_ext_buffer*sizeof(int16_t*));
-	int16_t* refBuffer = (int16_t*)malloc(experiment.ns_ref_buffer*sizeof(int16_t*));
-	
+	int16_t* extBuffer = (int16_t*)malloc(experiment.ns_ext_buffer*sizeof(int16_t*));	
 	memset(extBuffer, 0, experiment.ns_ext_buffer);
-	memset(refBuffer, 0, experiment.ns_ref_buffer);
 	
 	rp_AcqSetDecimation(RP_DEC_8);	
 	
@@ -199,12 +194,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "ext file open failed, %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}	
-	
-	if (!(refFile = fopen(experiment.ch2_filename, "wb"))) 
-	{
-		fprintf(stderr, "ref file open failed, %s\n", strerror(errno));
-		return EXIT_FAILURE;
-	}
 	
 	//initialise IMU and configure update rates
 	if (experiment.is_imu) 
@@ -262,7 +251,6 @@ int main(int argc, char *argv[])
 			
 			//transfer data from ADC buffer to RAM
 			rp_AcqGetLatestDataRaw(RP_CH_1, &experiment.ns_ext_buffer, extBuffer);		
-			rp_AcqGetLatestDataRaw(RP_CH_2, &experiment.ns_ref_buffer, refBuffer);	
 			
 			//restart adc sampling
 			rp_AcqStart();
@@ -285,7 +273,6 @@ int main(int argc, char *argv[])
 			
 			//transfer buffer to SD
 			fwrite(extBuffer, sizeof(int16_t), experiment.ns_ext_buffer, extFile);
-			fwrite(refBuffer, sizeof(int16_t), experiment.ns_ref_buffer, refFile);
 		
 			//set state of ADC trigger back to external pin rising edge.
 			rp_AcqSetTriggerSrc(RP_TRIG_SRC_EXT_PE);
@@ -300,7 +287,7 @@ int main(int argc, char *argv[])
 			//check to see if a flag could be lost
 			if (loop_duration > experiment.u_max_loop) 
 			{				
-				experiment.n_missed += loop_duration/experiment.u_max_loop;	
+				//experiment.n_missed += loop_duration/experiment.u_max_loop;	
 				printf("Loop took %.2f us\n", loop_duration);	
 			}	
 		}
@@ -312,7 +299,7 @@ int main(int argc, char *argv[])
 	pthread_join(imu_thread, NULL);
 	
 	fclose(extFile);		
-	fclose(refFile);
+
 	if (experiment.is_imu) fclose(imuFile);
 	
 	if (experiment.n_missed > 0)
