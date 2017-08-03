@@ -175,6 +175,7 @@ int main(int argc, char *argv[])
 	memset(extBuffer, 0, experiment.ns_ext_buffer);
 	
 	rp_AcqSetDecimation(RP_DEC_8);	
+	rp_AcqSetAveraging(false);
 	
 	//set how many samples are recorded after trigger occurs.
 	//by default, ADC_BUFFER_SIZE/2 more samples are recorded.
@@ -182,6 +183,15 @@ int main(int argc, char *argv[])
 	
 	if (experiment.is_debug_mode)
 	{
+		bool is_averaging;
+		rp_AcqGetAveraging(&is_averaging);
+		
+		cprint("[**] ", BRIGHT, CYAN);		
+		if (is_averaging)
+			printf("Averaging is enabled.\n");
+		else
+			printf("Averaging is disabled.\n");
+		
 		cprint("[**] ", BRIGHT, CYAN);
 		printf("Decimation factor: %i\n", experiment.decFactor);
 		
