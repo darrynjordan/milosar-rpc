@@ -5,10 +5,10 @@ CC=arm-linux-gnueabihf-gcc
 CFLAGS= -std=gnu99 -Wall -Werror -I./src -L lib -lm -lpthread -lrp
 
 #h files used go here
-DEPS= rp.h colour.h imu.h controller.h mon.h
+DEPS= rp.h colour.h imu.h controller.h mon.h binary.h uart.h
 
 #c files used go here (with .o extension)
-OBJ = src/main.o src/ini.o src/controller.o src/colour.o src/imu.o src/mon.o
+OBJ = src/main.o src/ini.o src/controller.o src/colour.o src/imu.o src/mon.o src/binary.o src/uart.o
 
 #name of generated binaries
 BIN = rpc

@@ -83,10 +83,10 @@ void calculateRampParameters(Synthesizer *synth, Experiment *experiment)
 			synth->ramps[i].length = (uint16_t)(pow(2, 16) - 1);			
 		}
 		
-		//calculate RAMPx_INC = (bandwidth [Hz] * 2^24)/(phase detector frequency [MHz] * ramp_length)
+		//calculate RAMPx_INC = (bandwidth [Hz] * (2^24 - 1))/(phase detector frequency [MHz] * ramp_length)
 		if ((synth->ramps[i].length != 0) && (synth->ramps[i].increment == 0))
 		{
-			synth->ramps[i].increment = (synth->ramps[i].bandwidth*4*pow(2, 24))/(phase_detector_frequency*synth->ramps[i].length*pow(10,6));			
+			synth->ramps[i].increment = (synth->ramps[i].bandwidth*4*(pow(2, 24) - 1))/(phase_detector_frequency*synth->ramps[i].length*pow(10,6));			
 		}
 		
 		if (synth->ramps[i].increment > pow(2, 30) - 1)
@@ -751,12 +751,12 @@ int clean_stdin()
 
 double vcoOut(uint32_t fracNum)
 {
-	return 25*(96 + fracNum/pow(2, 24)) - 2400;
+	return 25*(100 + fracNum/(pow(2, 24) - 1)) - 2500;
 }
 
 double bnwOut(double rampInc, uint16_t rampLen)
 {
-	if(rampInc < pow(2, 24))
+	if(rampInc < (pow(2, 24) - 1))
 		return (rampInc*rampLen*100)/pow(2, 26);
 	else
 		return ((rampInc - pow(2, 30))*rampLen*100)/pow(2, 26);
