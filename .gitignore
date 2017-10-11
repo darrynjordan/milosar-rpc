@@ -1,6 +1,9 @@
 # Geany
 *.geany
 
+# RPC
+*rpc
+
 # Object files
 *.o
 *.ko
