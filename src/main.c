@@ -10,88 +10,38 @@
 #include "colour.h"
 #include "imu.h"
 
-void splash(Experiment *experiment);
+void splash(void);
 void help(void);
-void parse_uart(FILE* imuFile);
+void parse_uart(void);
+void parse_options(int argc, char *argv[]);
 
-//global UM7 receive packet
-extern UM7_packet global_packet;
+extern heartbeat beat;
 
 //global experiment active flag
 int is_experiment_active = false;
 int is_imu_allowed = false;
 
+//declare global structs
+Experiment experiment;
+Synthesizer synthOne;
+Synthesizer synthTwo;
+
 int main(int argc, char *argv[])
 {
 	pthread_t imu_thread;
 	
-	int opt;
-	int is_synth_one = 0;
-	int is_synth_two = 0;
-
-	//declare structs
-	Experiment experiment;
-	Synthesizer synthOne;
-	Synthesizer synthTwo;
-	
-	//initialise synth number
+	//initialise default values
 	synthOne.number = 1;
 	synthTwo.number = 2;
-	
 	experiment.storageDir = "/media/storage";
 	experiment.is_debug_mode = 0;
 	experiment.adc_channel = 0;
 
-	//retrieve command-line options
-    while ((opt = getopt(argc, argv, "dib:c:t:l:rh")) != -1 )
-    {
-        switch (opt)
-        {
-            case 'd':
-                experiment.is_debug_mode = 1;
-                break;
-            case 'r':
-                experiment.storageDir = "/tmp";
-                break;       
-            case 'i':
-                experiment.is_imu = 1;
-                break;
-			case 'c':
-				experiment.adc_channel = atoi(optarg);
-				break;
-			case 'b':
-				synthOne.parameterFile = optarg;
-				synthTwo.parameterFile = optarg;
-				is_synth_one = 1;
-				is_synth_two = 1;
-				break;
-			case 'l':
-				is_synth_one = 1;
-				synthOne.parameterFile = optarg;
-				break;
-			case 't':
-				is_synth_two = 1;
-				synthTwo.parameterFile = optarg;
-				break;
-			case 'h':
-				help();
-				break;
-            case '?':
-				if (optopt == 'c')
-					fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-				else
-				fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
-        }
-    }
-
-    if (is_synth_one + is_synth_two != 2)
-    {
-		cprint("[!!] ", BRIGHT, RED);
-		printf("A .ini parameter file must be provided for each synthesizer.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	splash(&experiment);
+	//parse command line options
+	parse_options(argc, argv);
+	
+	//display splash screen
+	splash();
 
 	//get parameters for ini files
 	getParameters(&synthOne);
@@ -129,6 +79,7 @@ int main(int argc, char *argv[])
 	updateRegisters(&synthOne);
 	updateRegisters(&synthTwo);
 	
+	//set experiment values
 	experiment.ns_ext_buffer = 1280;	
 	experiment.u_max_loop = 950; 	
 	experiment.n_flags = 0;		
@@ -157,7 +108,6 @@ int main(int argc, char *argv[])
 	setRegister(&synthTwo, 58, 0b00100001);	
 	
 	FILE *extFile;
-	FILE *imuFile;
 
 	struct timeval start_time, transfer_time, loop_time;	
 	
@@ -208,21 +158,22 @@ int main(int argc, char *argv[])
 	//initialise IMU and configure update rates
 	if (experiment.is_imu) 
 	{
-		if (!(imuFile = fopen(experiment.imu_filename, "wb"))) 
-		{		
-			cprint("[!!] ", BRIGHT, RED);
-			printf("IMU file open failed.\n");
-			exit(EXIT_FAILURE);
-		}
-		
-		initIMU();
+		initUART(B115200);
+		initIMU(&experiment);
 		
 		is_experiment_active = true;
 		
-		if (pthread_create(&imu_thread, NULL, (void*)parse_uart, imuFile))
+		if (pthread_create(&imu_thread, NULL, (void*)parse_uart, NULL))
 		{
 			cprint("[!!] ", BRIGHT, RED);
 			printf("Error launching imu thread.\n");
+		}
+		else
+		{
+			//start experiment
+			is_experiment_active = true;
+			cprint("[OK] ", BRIGHT, GREEN);
+			printf("IMU active.\n");
 		}
 	}
 	
@@ -305,12 +256,15 @@ int main(int argc, char *argv[])
 	
 	is_experiment_active = false;
 
-	//join all threads
-	pthread_join(imu_thread, NULL);
 	
 	fclose(extFile);		
 
-	if (experiment.is_imu) fclose(imuFile);
+	if (experiment.is_imu) 
+	{
+		//join all threads
+		pthread_join(imu_thread, NULL);		
+		dnitUART();
+	}
 	
 	if (experiment.n_missed > 0)
 	{
@@ -346,13 +300,13 @@ int main(int argc, char *argv[])
 }
 
 
-void splash(Experiment *experiment)
+void splash(void)
 {
 	system("clear\n");
 	printf("UCT RPC: %s\n", VERSION);
 	printf("--------------\n");
 
-	if (experiment->is_debug_mode)
+	if (experiment.is_debug_mode)
 	{
 		cprint("[OK] ", BRIGHT, GREEN);
 		printf("Debug mode enabled.\n");
@@ -363,13 +317,10 @@ void splash(Experiment *experiment)
 		printf("Debug mode disabled.\n");
 	}
 
-	if (experiment->is_imu)
+	if (experiment.is_imu)
 	{
 		cprint("[OK] ", BRIGHT, GREEN);
 		printf("IMU mode enabled.\n");
-		
-		cprint("\n[**] ", BRIGHT, CYAN);
-		printf("RP UART Pins: https://wiki.redpitaya.com/tmp/Extension_connector.png\n");
 	}
 	else
 	{
@@ -395,15 +346,83 @@ void help(void)
 }
 
 
-void parse_uart(FILE* imuFile)
+void parse_uart(void)
 {		
+	FILE *imuFile;
+
+	if (!(imuFile = fopen(experiment.imu_filename, "wb"))) 
+	{		
+		cprint("[!!] ", BRIGHT, RED);
+		printf("IMU file open failed.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	//while experiment is active
 	while (is_experiment_active)
-	{	
+	{
 		//prevent intensive processing while is_imu_allowed is false
-		while(is_imu_allowed == false);
+		while(!is_imu_allowed);
 		
-		fwrite(getUARTbuffer(200), sizeof(uint8_t), 200, imuFile);		
-		usleep(100e3);
+		fwrite(getUART(200), sizeof(uint8_t), 200, imuFile);
+		usleep(0.1e6);
+	}
+
+	fclose(imuFile);
+}
+
+
+void parse_options(int argc, char *argv[])
+{
+	int opt;
+	int is_synth_one = 0;
+	int is_synth_two = 0;
+	
+	//retrieve command-line options
+    while ((opt = getopt(argc, argv, "dib:c:t:l:rh")) != -1 )
+    {
+        switch (opt)
+        {
+            case 'd':
+                experiment.is_debug_mode = 1;
+                break;
+            case 'r':
+                experiment.storageDir = "/tmp";
+                break;       
+            case 'i':
+                experiment.is_imu = 1;
+                break;
+			case 'c':
+				experiment.adc_channel = atoi(optarg);
+				break;
+			case 'b':
+				synthOne.parameterFile = optarg;
+				synthTwo.parameterFile = optarg;
+				is_synth_one = 1;
+				is_synth_two = 1;
+				break;
+			case 'l':
+				is_synth_one = 1;
+				synthOne.parameterFile = optarg;
+				break;
+			case 't':
+				is_synth_two = 1;
+				synthTwo.parameterFile = optarg;
+				break;
+			case 'h':
+				help();
+				break;
+            case '?':
+				if (optopt == 'c')
+					fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+				else
+				fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+        }
+    }
+
+    if (is_synth_one + is_synth_two != 2)
+    {
+		cprint("[!!] ", BRIGHT, RED);
+		printf("A .ini parameter file must be provided for each synthesizer.\n");
+		exit(EXIT_FAILURE);
 	}
 }

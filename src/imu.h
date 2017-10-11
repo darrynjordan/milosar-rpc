@@ -1,19 +1,18 @@
-#ifndef UM7_UART_H
-#define UM7_UART_H
+#ifndef UM7_IMU_H
+#define UM7_IMU_H
 
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>		
-#include <fcntl.h>			
-#include <termios.h>		
-#include <errno.h>
 #include <math.h>
 #include <stdlib.h>
 
+#include "controller.h"
 #include "colour.h"
+#include "binary.h"
+#include "uart.h"
 
 #define PACKET_DATA_SIZE 		48
-#define N_TX_ATTEMPTS 			100
 
 #define CREG_COM_SETTINGS 		0x00
 #define CREG_COM_RATES1 		0x01
@@ -22,6 +21,8 @@
 #define CREG_COM_RATES4 		0x04
 #define CREG_COM_RATES5 		0x05
 #define CREG_COM_RATES6 		0x06
+#define CREG_COM_RATES7 		0x07
+#define CREG_MISC_SETTINGS		0x08
 
 #define DREG_HEALTH 			0x55
 
@@ -57,6 +58,13 @@
 #define SET_MAG_REFERENCE		0xB0
 #define RESET_EKF				0xB3
 
+#define DREG_GPS_LATITUDE		0x7D
+#define DREG_GPS_LONGITUDE		0x7E
+#define DREG_GPS_ALTITUDE		0x7F
+#define DREG_GPS_COURSE			0x80
+#define DREG_GPS_SPEED			0x81
+#define DREG_GPS_TIME			0x82
+
 #define PT_HAS_DATA 			0b10000000
 #define PT_IS_BATCH 			0b01000000
 #define PT_BL_3		 			0b00100000
@@ -66,38 +74,43 @@
 #define PT_CF	 				0b00000001
 #define PT_READ	 				0b00000000
 
-typedef struct UM7_packet_struct
+typedef struct 
 {
   uint8_t address;
   uint8_t packet_type;
   uint16_t checksum; 
   uint8_t data[PACKET_DATA_SIZE];
   uint8_t n_data_bytes;
-} UM7_packet;
+} packet;
 
-uint8_t* getUARTbuffer(int size);
-void initUART(void);
-void initIMU(void);
+typedef struct 
+{
+  uint8_t sats_used;
+  uint8_t sats_view;
+  uint16_t hdop;  
+  uint8_t mag_norm;
+  uint8_t acc_norm; 
+  uint8_t acc_fail;
+  uint8_t gyro_fail;
+  uint8_t mag_fail;
+  uint8_t gps_fail;
+  uint8_t uart_fail;
+} heartbeat;
+
+void initIMU(Experiment *experiment);
+
 int rxPacket(int size);
-int txPacket(UM7_packet* packet);
-int releaseConnection(void);
+int txPacket(packet* tx_packet);
+int svPacket(packet* sv_packet);
 
-void getFirmwareVersion(void);
-void flashCommit(void);
-void factoryReset(void);
-void zeroGyros(void);
-void setHomePosition(void);
-void setMagReference(void);
-void resetEKF(void);
-
-void checkCommandSuccess(char* command_name);
+void writeCommand(int command);
 void readRegister(uint8_t address);
-void writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data);
+int writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data);
 
-uint32_t bit8ArrayToBit32(uint8_t *data);
-float bit32ToFloat(uint32_t bit32);
-void procHealth(UM7_packet* healthPacket);
+void getHeartbeat(int size);
+void showHeartbeat(Experiment *experiment);
 
-uint8_t parseSerialData(uint8_t* rx_data, uint8_t rx_length, UM7_packet* packet);
+uint8_t parseUART(uint8_t* rx_data, uint8_t rx_length);
+
 
 #endif
