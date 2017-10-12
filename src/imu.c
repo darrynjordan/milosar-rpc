@@ -132,6 +132,8 @@ uint8_t parseUART(uint8_t* rx_data, uint8_t rx_length)
 
 void initIMU(Experiment *experiment)
 {
+	//writeCommand(RESET_TO_FACTORY);
+	
 	//baud rate of the UM7 main serial port = 115200
 	//baud rate of the UM7 auxiliary serial port = 57600
 
@@ -423,75 +425,74 @@ void getHeartbeat(int size)
 	
 	beat.sats_used = satsUsed;	
 	beat.sats_view = satsView;
+	
+	showHeartbeat();
 }
 
 
-void showHeartbeat(Experiment *experiment)
+void showHeartbeat(void)
 {
-	if (experiment->is_debug_mode)
+	if (beat.gps_fail) 
 	{
-		if (beat.gps_fail) 
-		{
-			cprint("[**] ", BRIGHT, RED);
-			printf("No GPS data for 2 seconds.\n");
-		}
-		
-		if (beat.mag_fail) 
-		{
-			cprint("[**] ", BRIGHT, RED);
-			printf("Mag failed to init on startup.\n");
-		}		
-		
-		if (beat.gyro_fail)
-		{
-			cprint("[**] ", BRIGHT, RED);
-			printf("Gyro failed to init on startup.\n");
-		}	
-	 
-		if (beat.acc_fail) 
-		{
-			cprint("[**] ", BRIGHT, RED);
-			printf("Acc failed to init on startup.\n");
-		}		
-		
-		if (beat.acc_norm) 
-		{
-			cprint("[**] ", BRIGHT, RED);
-			printf("Acc norm exceeded - aggressive acceleration detected.\n");
-		}	
-		
-		if (beat.mag_norm) 
-		{
-			cprint("[**] ", BRIGHT, RED);
-			printf("Mag norm exceeded - bad calibration.\n");
-		}
-		
-		if (beat.uart_fail)
-		{
-			cprint("[**] ", BRIGHT, RED);
-			printf("UART overflow - reduce broadcast rates.\n");
-		}		
-		
-		cprint("[**] ", BRIGHT, CYAN);
-		printf("Satellites in view: %i\n", beat.sats_view);	
-
-		cprint("[**] ", BRIGHT, CYAN);
-		printf("Satellites used: %i\n", beat.sats_used);
-	}
-	else
-	{
-		int imu_sum = (beat.mag_fail + beat.mag_fail + beat.gyro_fail + beat.acc_fail + beat.acc_norm + beat.mag_norm);
-		
-		char* gps_status = (beat.gps_fail) ? "NO" : "OK";
-		char* uart_status = (beat.uart_fail) ? "NO" : "OK";
-		char* imu_status = (imu_sum) ? "NO" : "OK";
-		
-		printf("| GPS | IMU | UART | SATS |\n");
-		printf("---------------------------\n");
-		printf("| %s  | %s  | %s   | %3i  |\n", gps_status, imu_status, uart_status, beat.sats_view);	
+		cprint("[**] ", BRIGHT, RED);
+		printf("No GPS data for 2 seconds.\n");
 	}
 	
-	printf("\033[%iA\n", 4);
+	if (beat.mag_fail) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Mag failed to init on startup.\n");
+	}		
+	
+	if (beat.gyro_fail)
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Gyro failed to init on startup.\n");
+	}	
+ 
+	if (beat.acc_fail) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Acc failed to init on startup.\n");
+	}		
+	
+	if (beat.acc_norm) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Acc norm exceeded - aggressive acceleration detected.\n");
+	}	
+	
+	if (beat.mag_norm) 
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("Mag norm exceeded - bad calibration.\n");
+	}
+	
+	if (beat.uart_fail)
+	{
+		cprint("[**] ", BRIGHT, RED);
+		printf("UART overflow - reduce broadcast rates.\n");
+	}		
+	
+	cprint("[**] ", BRIGHT, CYAN);
+	printf("Satellites in view: %i\n", beat.sats_view);	
+
+	cprint("[**] ", BRIGHT, CYAN);
+	printf("Satellites in use: %i\n", beat.sats_used);
+
+	/*
+	int imu_sum = (beat.mag_fail + beat.mag_fail + beat.gyro_fail + beat.acc_fail + beat.acc_norm + beat.mag_norm);
+	
+	char* gps_status = (beat.gps_fail) ? "NO" : "OK";
+	char* uart_status = (beat.uart_fail) ? "NO" : "OK";
+	char* imu_status = (imu_sum) ? "NO" : "OK";
+	
+	printf("| GPS | IMU | UART | SATS |\n");
+	printf("---------------------------\n");
+	printf("| %s  | %s  | %s   | %3i  |\n", gps_status, imu_status, uart_status, beat.sats_view);	
+	
+	printf("\033[%iA\n", 4); 
+	*/	
 }
 
 

@@ -363,8 +363,8 @@ void parse_uart(void)
 		//prevent intensive processing while is_imu_allowed is false
 		while(!is_imu_allowed);
 		
-		fwrite(getUART(200), sizeof(uint8_t), 200, imuFile);
-		usleep(0.1e6);
+		fwrite(getUART(100), sizeof(uint8_t), 100, imuFile);
+		usleep(1e3);
 	}
 
 	fclose(imuFile);

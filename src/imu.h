@@ -108,7 +108,7 @@ void readRegister(uint8_t address);
 int writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data);
 
 void getHeartbeat(int size);
-void showHeartbeat(Experiment *experiment);
+void showHeartbeat(void);
 
 uint8_t parseUART(uint8_t* rx_data, uint8_t rx_length);
 
