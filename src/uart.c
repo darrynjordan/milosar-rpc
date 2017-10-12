@@ -103,8 +103,8 @@ void initUART(speed_t baud)
 	tcflush(uart_fd, TCIFLUSH);
 	tcsetattr(uart_fd, TCSANOW, &settings);
 	
-	cprint("[OK] ", BRIGHT, GREEN);
-	printf("UART initialised.\n");
+	/*cprint("[OK] ", BRIGHT, GREEN);
+	printf("UART initialised.\n");*/
 }
 
 

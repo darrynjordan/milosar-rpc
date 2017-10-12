@@ -9,135 +9,144 @@ packet global_packet;
 heartbeat beat;
 
 // Parse the serial data obtained through the UART interface and fit to a general packet structure
-uint8_t parseUART(uint8_t* rx_data, uint8_t rx_length)
+uint8_t parseUART(int address, uint8_t* rx_data, uint8_t rx_length)
 {
 	uint8_t index;
 	// Make sure that the data buffer provided is long enough to contain a full packet
 	// The minimum packet length is 7 bytes
-	if( rx_length < 7 )
+	if (rx_length < 7)
 	{
-		return -1;
-		//printf("packet lenth too short\n");
+		//buffer length too short to contain a valid packet
+		return -1;		
 	}
 	
 	// Try to find the 'snp' start sequence for the packet
-	for(index = 0; index < (rx_length - 2); index++)
+	for (index = 0; index < (rx_length - 2); index++)
     {
 		// Check for 'snp'. If found, immediately exit the loop
-		if( rx_data[index] == 's' && rx_data[index+1] == 'n' && rx_data[index+2] == 'p' )
+		if (rx_data[index] == 's' && rx_data[index+1] == 'n' && rx_data[index+2] == 'p')
 		{
-			//printf("Found SNP\n");
-			break;
+			//found valid SNP			
+			uint8_t packet_index = index;
+	
+			// Check to see if the variable 'packet_index' is equal to (rx_length - 2). If it is, then the above
+			// loop executed to completion and never found a packet header.
+			if (packet_index == (rx_length - 2))
+			{
+				printf("Didn't find SNP\n");
+				return -2;
+			}
+			
+			// If we get here, a packet header was found. Now check to see if we have enough room
+			// left in the buffer to contain a full packet. Note that at this point, the variable 'packet_index'
+			// contains the location of the 's' character in the buffer (the first byte in the header)
+			if ((rx_length - packet_index) < 7)
+			{
+				//printf("not enough room after 's' for a full packet\n");
+				return -3;
+			}
+			
+			// We've found a packet header, and there is enough space left in the buffer for at least
+			// the smallest allowable packet length (7 bytes). Pull out the packet type byte to determine
+			// the actual length of this packet
+			uint8_t PT = rx_data[packet_index + 3];
+
+			// Do some bit-level manipulation to determine if the packet contains data and if it is a batch
+			// We have to do this because the individual bits in the PT byte specify the contents of the
+			// packet.
+			uint8_t packet_has_data = (PT >> 7) & 0x01; // Check bit 7 (HAS_DATA)
+			uint8_t packet_is_batch = (PT >> 6) & 0x01; // Check bit 6 (IS_BATCH)
+			uint8_t batch_length = (PT >> 2) & 0x0F; // Extract the batch length (bits 2 through 5)
+
+			// Now finally figure out the actual packet length
+			uint8_t data_length = 0;
+			if( packet_has_data )
+			{
+				if( packet_is_batch )
+				{
+					// Packet has data and is a batch. This means it contains 'batch_length' registers, each
+					// of which has a length of 4 bytes
+					data_length = 4*batch_length;
+					//printf("Packet is batch, length = %i\n", (int)(data_length));
+				}
+				else // Packet has data but is not a batch. This means it contains one register (4 bytes)   
+				{
+					data_length = 4;
+				}
+			}
+			else // Packet has no data
+			{
+				data_length = 0;
+			}
+			
+			// At this point, we know exactly how long the packet is. Now we can check to make sure
+			// we have enough data for the full packet.
+			if( (rx_length - packet_index) < (data_length + 5) )
+			{
+				//printf("not enough data for full packet!\n");
+				//printf("rx_length %d, packet_index %d, data_length+5 %d\n", rx_length, packet_index, data_length+5); 
+				return -4;
+			}
+			
+			// If we get here, we know that we have a full packet in the buffer. All that remains is to pull
+			// out the data and make sure the checksum is good.
+			// Start by extracting all the data
+			global_packet.address = rx_data[packet_index + 4];	
+			global_packet.packet_type = PT;
+			
+			if (global_packet.address != address)
+			{
+				//packet address does not match search address
+				//increase the loop index and look for a new valid packet
+				return -5;;
+			}
+
+			// Get the data bytes and compute the checksum all in one step
+			global_packet.n_data_bytes = data_length;
+			uint16_t computed_checksum = 's' + 'n' + 'p' + global_packet.packet_type + global_packet.address;	
+			
+			for( int k = 0; k < data_length; k++ )
+			{
+				// Copy the data into the packet structure's data array
+				global_packet.data[k] = rx_data[packet_index + 5 + k];
+				// Add the new byte to the checksum
+				computed_checksum += global_packet.data[k];		
+			}    
+		   
+			// Now see if our computed checksum matches the received checksum
+			// First extract the checksum from the packet
+			uint16_t received_checksum = (rx_data[packet_index + 5 + data_length] << 8);
+
+			received_checksum |= rx_data[packet_index + 6 + data_length];
+			// Now check to see if they don't match
+			if (received_checksum != computed_checksum)
+			{
+				//checksum is bad
+				//increase the loop index and look for a new valid packet
+				return -5;;
+			}
+			
+			//printf("checksum good!\n");
+			global_packet.checksum = computed_checksum;
+			// At this point, we've received a full packet with a good checksum. It is already
+			// fully parsed and copied to the packet structure, so return 0 to indicate that a packet was
+			// processed.
+			return 1;			
 		}
     }    
-	uint8_t packet_index = index;
-	
-	// Check to see if the variable 'packet_index' is equal to (rx_length - 2). If it is, then the above
-	// loop executed to completion and never found a packet header.
-	if( packet_index == (rx_length - 2) )
-	{
-		//printf("Didn't find SNP\n");
-		return -2;
-    }
     
-	// If we get here, a packet header was found. Now check to see if we have enough room
-	// left in the buffer to contain a full packet. Note that at this point, the variable 'packet_index'
-	// contains the location of the 's' character in the buffer (the first byte in the header)
-	if ((rx_length - packet_index) < 7)
-	{
-		//printf("not enough room after 's' for a full packet\n");
-		return -3;
-    }
-    
-	// We've found a packet header, and there is enough space left in the buffer for at least
-	// the smallest allowable packet length (7 bytes). Pull out the packet type byte to determine
-	// the actual length of this packet
-	uint8_t PT = rx_data[packet_index + 3];
-
-	// Do some bit-level manipulation to determine if the packet contains data and if it is a batch
-	// We have to do this because the individual bits in the PT byte specify the contents of the
-	// packet.
-	uint8_t packet_has_data = (PT >> 7) & 0x01; // Check bit 7 (HAS_DATA)
-	uint8_t packet_is_batch = (PT >> 6) & 0x01; // Check bit 6 (IS_BATCH)
-	uint8_t batch_length = (PT >> 2) & 0x0F; // Extract the batch length (bits 2 through 5)
-
-	// Now finally figure out the actual packet length
-	uint8_t data_length = 0;
-	if( packet_has_data )
-    {
-		if( packet_is_batch )
-		{
-			// Packet has data and is a batch. This means it contains 'batch_length' registers, each
-			// of which has a length of 4 bytes
-			data_length = 4*batch_length;
-			//printf("Packet is batch, length = %i\n", (int)(data_length));
-		}
-		else // Packet has data but is not a batch. This means it contains one register (4 bytes)   
-		{
-			data_length = 4;
-		}
-    }
-	else // Packet has no data
-    {
-		data_length = 0;
-    }
-    
-	// At this point, we know exactly how long the packet is. Now we can check to make sure
-	// we have enough data for the full packet.
-	if( (rx_length - packet_index) < (data_length + 5) )
-    {
-		//printf("not enough data for full packet!\n");
-		//printf("rx_length %d, packet_index %d, data_length+5 %d\n", rx_length, packet_index, data_length+5); 
-		return -4;
-    }
-    
-	// If we get here, we know that we have a full packet in the buffer. All that remains is to pull
-	// out the data and make sure the checksum is good.
-	// Start by extracting all the data
-	global_packet.address = rx_data[packet_index + 4];	
-	global_packet.packet_type = PT;
-
-	// Get the data bytes and compute the checksum all in one step
-	global_packet.n_data_bytes = data_length;
-	uint16_t computed_checksum = 's' + 'n' + 'p' + global_packet.packet_type + global_packet.address;	
-	
-	for( index = 0; index < data_length; index++ )
-    {
-		// Copy the data into the packet structure's data array
-		global_packet.data[index] = rx_data[packet_index + 5 + index];
-		// Add the new byte to the checksum
-		computed_checksum += global_packet.data[index];		
-    }    
-   
-	// Now see if our computed checksum matches the received checksum
-	// First extract the checksum from the packet
-	uint16_t received_checksum = (rx_data[packet_index + 5 + data_length] << 8);
-
-	received_checksum |= rx_data[packet_index + 6 + data_length];
-	// Now check to see if they don't match
-	if (received_checksum != computed_checksum)
-    {
-		//printf("checksum bad!\n");
-		return -6;
-    }
-    
-    //printf("checksum good!\n");
-	global_packet.checksum = computed_checksum;
-	// At this point, we've received a full packet with a good checksum. It is already
-	// fully parsed and copied to the packet structure, so return 0 to indicate that a packet was
-	// processed.
-	return 1;
+    return -5;	
 }
 
 
 void initIMU(Experiment *experiment)
 {
-	//writeCommand(RESET_TO_FACTORY);
+	writeCommand(RESET_TO_FACTORY);
 	
 	//baud rate of the UM7 main serial port = 115200
 	//baud rate of the UM7 auxiliary serial port = 57600
 
-	uint8_t com_settings[4] = {4 + (5 << 4), 0, 1, 0};	
+	/*uint8_t com_settings[4] = {4 + (5 << 4), 0, 1, 0};	
 	uint8_t all_proc[4] = {0, 0, 0, 255};
 	uint8_t health[4] = {0, 6, 0, 0};
 	//uint8_t position[4] = {0, 0, 255, 0};	
@@ -149,7 +158,7 @@ void initIMU(Experiment *experiment)
 	writeRegister(CREG_COM_RATES4, 4, all_proc);			// all proc data rate	
 	writeRegister(CREG_COM_RATES5, 4, zero_buffer);			// quart, euler, position, velocity rate
 	writeRegister(CREG_COM_RATES6, 4, health);				// heartbeat rate
-	writeRegister(CREG_COM_RATES7, 4, zero_buffer);			// CHR NMEA-style packets
+	writeRegister(CREG_COM_RATES7, 4, zero_buffer);			// CHR NMEA-style packets*/
 	
 	if (experiment->is_debug_mode)
 	{
@@ -169,7 +178,8 @@ void initIMU(Experiment *experiment)
 	writeCommand(RESET_EKF);
 	writeCommand(ZERO_GYROS);
 	
-	getHeartbeat(25);
+	getHeartbeat();
+	showHeartbeat();
 	
 	writeCommand(SET_MAG_REFERENCE);
 	writeCommand(SET_HOME_POSITION);
@@ -216,17 +226,19 @@ int txPacket(packet* tx_packet)
 }
 
 //searches for the first valid paket within 'size' samples of the UART buffer
-int rxPacket(int size)
+int rxPacket(int address, int size, int attempts)
 {
-	if(parseUART(getUART(size), size))
+	for (int i = 0; i < attempts; i++)
 	{
-		return 1; 
+		if (parseUART(address, getUART(size), size) == 1)
+		{
+			//found valid packet matching address -> global packet
+			return 1; 
+		}
 	}
-	else
-	{
-		//printf("No useable packet received.\n");
-		return -1; 		
-	}		
+
+	//no valid packet found in all attempts matching address
+	return 0; 			
 }
 
 
@@ -315,11 +327,11 @@ int writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data)
 					break;
 			}
 	
-			return -1;
+			return 0;
 		}
 		
 		txPacket(&tx_packet);
-		rxPacket(25);
+		rxPacket(address, 21, 1);
 	} 
 	while (global_packet.address != address);
 	
@@ -393,10 +405,10 @@ void readRegister(uint8_t address)
 }
 
 
-void getHeartbeat(int size)
+void getHeartbeat(void)
 {
 	//wait until valid health packet is received
-	while((global_packet.address != DREG_HEALTH) && parseUART(getUART(size), size));
+	while(rxPacket(DREG_HEALTH, 21, 1) != 1);
 	
 	uint32_t health = bit8ArrayToBit32(global_packet.data);
 	int satsView = 0;
@@ -425,8 +437,6 @@ void getHeartbeat(int size)
 	
 	beat.sats_used = satsUsed;	
 	beat.sats_view = satsView;
-	
-	showHeartbeat();
 }
 
 
