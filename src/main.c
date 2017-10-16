@@ -16,6 +16,7 @@ void parse_uart(void);
 void parse_options(int argc, char *argv[]);
 
 extern heartbeat beat;
+extern uint8_t* uart_buffer;
 
 //global experiment active flag
 int is_experiment_active = false;
@@ -363,8 +364,8 @@ void parse_uart(void)
 		//prevent intensive processing while is_imu_allowed is false
 		while(!is_imu_allowed);
 		
-		fwrite(getUART(100), sizeof(uint8_t), 100, imuFile);
-		usleep(1e3);
+		fwrite(uart_buffer, sizeof(uint8_t), getUART(250), imuFile);
+		usleep(5e3);
 	}
 
 	fclose(imuFile);

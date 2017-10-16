@@ -56,8 +56,9 @@ int handler(void* pointer, const char* section, const char* attribute, const cha
 		else if (MATCH(rampSection, "reset")) 		synth->ramps[i].reset = atoi(value);
 		else if (MATCH(rampSection, "flag")) 		synth->ramps[i].flag = atoi(value);	
 		else if (MATCH(rampSection, "doubler")) 	synth->ramps[i].doubler = atoi(value);	
-	}					    
-    return 1;	
+	}	
+	
+	return 1;	
 }
 
 

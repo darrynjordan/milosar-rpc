@@ -6,31 +6,29 @@ int uart_fd = -1;
 // UART buffer
 uint8_t* uart_buffer;
 
-uint8_t* getUART(int size)
+int getUART(int size)
 {
 	// don't block serial read 
 	fcntl(uart_fd, F_SETFL, FNDELAY); 
 	
-	uart_buffer = (uint8_t*)malloc(size*sizeof(uint8_t));
+	if (uart_fd == -1)
+	{
+		cprint("[!!] ", BRIGHT, RED);
+		printf("UART has not been initialized.\n");
+	}
   
 	while(1)
 	{
-		if (uart_fd == -1)
-		{
-			cprint("[!!] ", BRIGHT, RED);
-			printf("UART has not been initialized.\n");
-		}
-		
 		// perform uart read
 		int rx_length = read(uart_fd, (void*)uart_buffer, size);
 		
 		if (rx_length == -1)
 		{
-			//printf("No UART data available yet, check again.\n");
 			if(errno == EAGAIN)
 			{
 				// an operation that would block was attempted on an object that has non-blocking mode selected.
 				//printf("UART read blocked, try again.\n");
+				//printf("No UART data available yet, check again.\n");
 				continue;
 			} 
 			else
@@ -39,20 +37,19 @@ uint8_t* getUART(int size)
 			}
 		  
 		}
-		else if (rx_length == size)
+		else
 		{	
-			return uart_buffer;
-			break;
+			return rx_length;
 		}
 	}  
-	
-	tcflush(uart_fd, TCIFLUSH); 
 }
 
 
 void initUART(speed_t baud)
 {
 	dnitUART();
+	
+	uart_buffer = (uint8_t*)malloc(UART_BUFFER_SIZE*sizeof(uint8_t));
 	
 	uart_fd = open("/dev/ttyPS1", O_RDWR | O_NOCTTY | O_NDELAY);
 

@@ -12,9 +12,11 @@
 
 #include "colour.h"
 
+#define UART_BUFFER_SIZE 500
+
 void initUART(speed_t baud);
 int dnitUART(void);
-uint8_t* getUART(int size);
+int getUART(int size);
 int getFileID(void);
 
 #endif
