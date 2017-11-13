@@ -297,6 +297,9 @@ int main(int argc, char *argv[])
 	setRegister(&synthOne, 58, 0b00100000);
 	setRegister(&synthTwo, 58, 0b00100000);
 	
+	
+	//system("scp -r /media/storage/ your_username@remotehost.edu:/some/remote/directory/bar")
+	
 	releaseRP();
 
 	return EXIT_SUCCESS;

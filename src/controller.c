@@ -621,14 +621,14 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 	//create time-stamped folder
 	char syscmd[100];
 	char foldername[100];
-	char timestamp[100];
+	experiment->timeStamp = (char*)malloc(20*sizeof(char));
 	
 	time_t rawtime = time(NULL);
 	struct tm tm = *localtime(&rawtime);
 	
-	sprintf(timestamp, "%02d_%02d_%02d_%02d_%02d", tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-	sprintf(foldername, "%s/%s/", experiment->storageDir, timestamp);
-	sprintf(syscmd, "mkdir %s/%s", experiment->storageDir, timestamp);		
+	sprintf(experiment->timeStamp, "%02d_%02d_%02d_%02d_%02d_%02d", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900 - 2000, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	sprintf(foldername, "%s/%s/", experiment->storageDir, experiment->timeStamp);
+	sprintf(syscmd, "mkdir %s/%s", experiment->storageDir, experiment->timeStamp);		
 	system(syscmd);
 	
 	char* ch1_out = (char*)malloc(100*sizeof(char));
@@ -647,14 +647,10 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 	strcpy(summary, foldername);
 	strcat(summary, "summary.ini");	
 	
-	char* time_stamp = (char*)malloc(100*sizeof(char));
-	strcpy(time_stamp, timestamp);
-	
 	experiment->ch1_filename = ch1_out;
 	experiment->ch2_filename = ch2_out;
 	experiment->imu_filename = imu_out;
 	experiment->summary_filename = summary;
-	experiment->timeStamp = time_stamp;
 	
 	FILE* summaryFile;
 	summaryFile = fopen(experiment->summary_filename, "w");
@@ -679,7 +675,7 @@ void configureVerbose(Experiment *experiment, Synthesizer *synthOne, Synthesizer
 		
 		//print summary file 
 		fprintf(summaryFile, "[overview]\r\n");
-		fprintf(summaryFile, "timestamp = %s\r\n", timestamp);
+		fprintf(summaryFile, "timestamp = %s\r\n", experiment->timeStamp);
 		fprintf(summaryFile, "rpc_version = %s\r\n", VERSION);
 		
 		cprint("[??] ", BRIGHT, BLUE);
