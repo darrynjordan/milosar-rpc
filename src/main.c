@@ -130,6 +130,8 @@ int main(int argc, char *argv[])
 	
 	//set how many samples are recorded after trigger occurs.
 	//by default, ADC_BUFFER_SIZE/2 more samples are recorded.
+	//thus, using rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2) results 
+	//in no new samples being recorded
 	rp_AcqSetTriggerDelay(-ADC_BUFFER_SIZE/2);
 	
 	if (experiment.is_debug_mode)
@@ -362,10 +364,13 @@ void parse_uart(void)
 	while (is_experiment_active)
 	{
 		//prevent intensive processing while is_imu_allowed is false
-		while(!is_imu_allowed);
+		//while(!is_imu_allowed);
 		
-		fwrite(uart_buffer, sizeof(uint8_t), getUART(250), imuFile);
-		usleep(5e3);
+		int rx_size = getUART();
+		
+		fwrite(uart_buffer, sizeof(uint8_t), rx_size, imuFile);
+		
+		usleep(1e3);
 	}
 
 	fclose(imuFile);

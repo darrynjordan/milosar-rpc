@@ -6,7 +6,7 @@ int uart_fd = -1;
 // UART buffer
 uint8_t* uart_buffer;
 
-int getUART(int size)
+int getUART(void)
 {
 	// don't block serial read 
 	fcntl(uart_fd, F_SETFL, FNDELAY); 
@@ -20,7 +20,7 @@ int getUART(int size)
 	while(1)
 	{
 		// perform uart read
-		int rx_length = read(uart_fd, (void*)uart_buffer, size);
+		int rx_length = read(uart_fd, (void*)uart_buffer, UART_BUFFER_SIZE);
 		
 		if (rx_length == -1)
 		{
@@ -47,10 +47,13 @@ int getUART(int size)
 
 void initUART(speed_t baud)
 {
+	//close any open connection and flush UART 
 	dnitUART();
 	
+	//allocate memory for UART buffer
 	uart_buffer = (uint8_t*)malloc(UART_BUFFER_SIZE*sizeof(uint8_t));
 	
+	//open connection to UART
 	uart_fd = open("/dev/ttyPS1", O_RDWR | O_NOCTTY | O_NDELAY);
 
 	if(uart_fd == -1)
@@ -117,6 +120,11 @@ int dnitUART(void)
 int getFileID(void)
 {
 	return uart_fd;
+}
+
+void clearUartBuffer(void)
+{
+	memset(uart_buffer, 0, UART_BUFFER_SIZE*sizeof(uint8_t));
 }
 
 

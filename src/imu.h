@@ -12,7 +12,7 @@
 #include "binary.h"
 #include "uart.h"
 
-#define PACKET_DATA_SIZE 		48
+#define PACKET_DATA_SIZE 		30
 
 #define CREG_COM_SETTINGS 		0x00
 #define CREG_COM_RATES1 		0x01
@@ -99,7 +99,7 @@ typedef struct
 
 void initIMU(Experiment *experiment);
 
-int rxPacket(int address, int size, int attempts);
+int rxPacket(int address, int attempts);
 int txPacket(packet* tx_packet);
 int svPacket(packet* sv_packet);
 

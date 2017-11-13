@@ -97,7 +97,7 @@ uint8_t parseUART(int address, uint8_t* rx_data, uint8_t rx_length)
 			{
 				//packet address does not match search address
 				//increase the loop index and look for a new valid packet
-				return 0;;
+				return 0;
 			}
 
 			// Get the data bytes and compute the checksum all in one step
@@ -122,7 +122,7 @@ uint8_t parseUART(int address, uint8_t* rx_data, uint8_t rx_length)
 			{
 				//checksum is bad
 				//increase the loop index and look for a new valid packet
-				return 0;;
+				return 0;
 			}
 			
 			//printf("checksum good!\n");
@@ -146,7 +146,8 @@ void initIMU(Experiment *experiment)
 	//baud rate of the UM7 auxiliary serial port = 57600
 
 	uint8_t com_settings[4] = {4 + (5 << 4), 0, 1, 0};	
-	uint8_t all_proc[4] = {0, 0, 0, 250};
+	//uint8_t proc_rates[4] = {0, 250, 0, 0};
+	//uint8_t temp_rate[4] = {250, 0, 0, 0};
 	uint8_t health[4] = {0, 6, 0, 0};
 	//uint8_t position[4] = {0, 0, 255, 0};	
 	
@@ -154,10 +155,10 @@ void initIMU(Experiment *experiment)
 	writeRegister(CREG_COM_RATES1, 4, zero_buffer);			// raw gyro, accel and mag rate	
 	writeRegister(CREG_COM_RATES2, 4, zero_buffer);			// temp rate and all raw data rate		
 	writeRegister(CREG_COM_RATES3, 4, zero_buffer);			// proc accel, gyro, mag rate		
-	writeRegister(CREG_COM_RATES4, 4, all_proc);			// all proc data rate	
+	//writeRegister(CREG_COM_RATES4, 4, proc_rates);			// all proc data rate	
 	writeRegister(CREG_COM_RATES5, 4, zero_buffer);			// quart, euler, position, velocity rate
 	writeRegister(CREG_COM_RATES6, 4, health);				// heartbeat rate
-	writeRegister(CREG_COM_RATES7, 4, zero_buffer);			// CHR NMEA-style packets
+	writeRegister(CREG_COM_RATES7, 4, zero_buffer);			// CHR NMEA-style packets*/
 	
 	if (experiment->is_debug_mode)
 	{
@@ -224,11 +225,11 @@ int txPacket(packet* tx_packet)
 }
 
 //searches for the first valid paket within 'size' samples of the UART buffer
-int rxPacket(int address, int size, int attempts)
+int rxPacket(int address, int attempts)
 {
 	for (int i = 0; i < attempts; i++)
 	{
-		if (parseUART(address, uart_buffer, getUART(size)) == 1)
+		if (parseUART(address, uart_buffer, getUART()) == 1)
 		{
 			//found valid packet matching address -> global packet
 			return 1; 
@@ -288,37 +289,37 @@ int writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data)
 			
 			switch (tx_packet.address)
 			{
-				case 0: 
+				case CREG_COM_SETTINGS: 
 					printf("CREG_COM_SETTINGS.\n");
 					break;
-				case 1: 
+				case CREG_COM_RATES1: 
 					printf("CREG_COM_RATES1.\n");
 					break;	
-				case 2:
+				case CREG_COM_RATES2:
 					printf("CREG_COM_RATES2.\n");
 					break;	
-				case 3:
+				case CREG_COM_RATES3:
 					printf("CREG_COM_RATES3.\n");
 					break;	
-				case 4:
+				case CREG_COM_RATES4:
 					printf("CREG_COM_RATES4.\n");
 					break;
-				case 5:	
+				case CREG_COM_RATES5:	
 					printf("CREG_COM_RATES5.\n");
 					break;
-				case 6:
+				case CREG_COM_RATES6:
 					printf("CREG_COM_RATES6.\n");
 					break;
-				case 7:
+				case CREG_COM_RATES7:
 					printf("CREG_COM_RATES7.\n");
 					break;
-				case 8:
+				case CREG_MISC_SETTINGS:
 					printf("CREG_MISC_SETTINGS.\n");
 					break;
-				case 85:
+				case DREG_HEALTH:
 					printf("DREG_HEALTH.\n");
 					break;
-				case 179:
+				case RESET_EKF:
 					printf("RESET_EKF.\n");
 					break;
 				default:
@@ -329,7 +330,7 @@ int writeRegister(uint8_t address, uint8_t n_data_bytes, uint8_t *data)
 			return 0;
 		}
 	}	
-	while(rxPacket(address, 35, 1) != 1);
+	while(rxPacket(address, 1) != 1);
 	
 	return 1;
 }
@@ -351,25 +352,25 @@ void writeCommand(int command)
 			
 			switch (command)
 			{
-				case 170: 
+				case GET_FW_REVISION: 
 					printf("Received firmware version.\n");
 					break;
-				case 171: 
+				case FLASH_COMMIT: 
 					printf("Flash committed.\n");
 					break;	
-				case 172:
+				case RESET_TO_FACTORY:
 					printf("Reset to factory settings.\n");
 					break;	
-				case 173:
+				case ZERO_GYROS:
 					printf("Gyros zero.\n");
 					break;	
-				case 174:
+				case SET_HOME_POSITION:
 					printf("GPS home position set.\n");
 					break;
-				case 176:	
+				case SET_MAG_REFERENCE:	
 					printf("Mag reference set.\n");
 					break;
-				case 179:
+				case RESET_EKF:
 					printf("Extended Kalman filter reset.\n");
 					break;
 			}			
@@ -380,31 +381,33 @@ void writeCommand(int command)
 
 void readRegister(uint8_t address)
 {
-	writeRegister(address, 0, zero_buffer);
+	if (writeRegister(address, 0, zero_buffer))
+	{
+		printf("UM7_R%i: ", global_packet.address);
+		for (int i = 0; i < 4; i++)
+			printf(" %i", global_packet.data[i]);
+		printf("\n");
+	}
+	
 	//printf("IMU Register %i: %f\n", address, bit32ToFloat(bit8ArrayToBit32(rx_packet.data)));	
 	
-	if (global_packet.packet_type &= PT_IS_BATCH)
+	/*if (global_packet.packet_type &= PT_IS_BATCH)
 	{				
 		system("clear\n");
 		printf("UM7_R%i: %f\n", global_packet.address+0, bit8ArrayToFloat(&global_packet.data[0]));
 		printf("UM7_R%i: %f\n", global_packet.address+1, bit8ArrayToFloat(&global_packet.data[4]));
 		printf("UM7_R%i: %f\n", global_packet.address+2, bit8ArrayToFloat(&global_packet.data[8]));
 		printf("UM7_R%i: %f\n", global_packet.address+3, bit8ArrayToFloat(&global_packet.data[12]));
-	}
-	else 
-	{
-		printf("UM7_R%i: ", global_packet.address);
-		for (int i = 0; i < 4; i++)
-			printf(" %i", global_packet.data[i]);
-		printf("\n");
-	}	
+	}*/
+
+
 }
 
 
 void getHeartbeat(void)
 {
 	//wait until valid health packet is received
-	while(rxPacket(DREG_HEALTH, 21, 1) != 1);
+	while(rxPacket(DREG_HEALTH, 1) != 1);
 	
 	uint32_t health = bit8ArrayToBit32(global_packet.data);
 	int satsView = 0;
