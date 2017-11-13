@@ -297,8 +297,17 @@ int main(int argc, char *argv[])
 	setRegister(&synthOne, 58, 0b00100000);
 	setRegister(&synthTwo, 58, 0b00100000);
 	
-	
-	//system("scp -r /media/storage/ your_username@remotehost.edu:/some/remote/directory/bar")
+
+	if (experiment.is_debug_mode)
+	{
+		cprint("[**] ", BRIGHT, CYAN);
+		printf("Enter password to transfer files:\n");
+		
+		char syscmd[100];
+		sprintf(syscmd, "scp -r %s/%s darryn@10.42.0.1:/home/darryn/Dropbox/Datasets/Temp", experiment.storageDir, experiment.timeStamp);		
+		system(syscmd);
+	}
+
 	
 	releaseRP();
 
