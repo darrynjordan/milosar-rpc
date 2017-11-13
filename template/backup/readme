@@ -4,3 +4,8 @@ v0.3 - MUXout set to DLD (R39 = 5A)
 v0.4 - RAMP_EN set low on startup (R58 = 20)
 v0.5 - PLL_N = 0x64 (N = 100) R16
 v0.6 - MUXout set to FLAG0 (R39 = F2) - same as TRIG1 to indicate triggers for ADC recording.
+v0.7 - VCO start frequency changed to 2.35 GHz (R16 = 5E)
+     - Fractional dither is off, fractional modulator is second order. (R18 = 2C)
+	 - Polarity of charge pump switched to negative. (R28 = 0F)
+	 - Ramp limits removed (R71 - R82)
+  

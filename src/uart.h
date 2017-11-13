@@ -19,6 +19,6 @@ void initUART(speed_t baud);
 int dnitUART(void);
 int getUART(void);
 int getFileID(void);
-void clearUartBuffer(void);
+void clearUART(void);
 
 #endif

@@ -14,7 +14,7 @@
 #include "colour.h"
 #include "ini.h"
 
-#define VERSION "2.1.0"
+#define VERSION "2.2.0"
 #define MAX_RAMPS 8
 #define NUM_REGISTERS 142
 #define ADC_RATE 125e6

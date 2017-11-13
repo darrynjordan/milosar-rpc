@@ -122,7 +122,7 @@ int getFileID(void)
 	return uart_fd;
 }
 
-void clearUartBuffer(void)
+void clearUART(void)
 {
 	memset(uart_buffer, 0, UART_BUFFER_SIZE*sizeof(uint8_t));
 }
